@@ -1,1 +1,1 @@
-# RAFT
+# regularized adaptive feature thresholding (RAFT)
