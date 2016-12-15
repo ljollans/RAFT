@@ -13,7 +13,7 @@ parfor folds=1:(design.numFolds*design.numFolds)
     if isempty(find(folds==folds2run))==0;
         
             tmpLHmerit=NaN(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
-    tmpvars2use=zeros(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas,design.nvars);
+    tmpvars2use=zeros(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas,size(design.data,2));
     tmplambda_values=NaN(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
         
     [mainfold, subfolds]=ind2sub([design.numFolds design.numFolds], folds);
