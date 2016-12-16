@@ -9,10 +9,18 @@ cd(design.saveto);
 
 fprintf('Performing Model Evaluations with %d subjects and %d predictors\n', size(design.data));
 
+design.nvars=size(design.data,2);
+
+fnan=find(isnan(design.extradata)==1);
+if length(fnan)>0
+    disp('Warning! Some covariates have NaN values. These will be changed to zeros.')
+    design.extradata(fnan)=0;
+end
+
 parfor folds=1:(design.numFolds*design.numFolds)
     if isempty(find(folds==folds2run))==0;
         
-            tmpLHmerit=NaN(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
+    tmpLHmerit=NaN(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
     tmpvars2use=zeros(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas,size(design.data,2));
     tmplambda_values=NaN(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
         
@@ -122,6 +130,10 @@ parfor folds=1:(design.numFolds*design.numFolds)
                         
                         %make outcome predictions
                         getprobstune = glmval(squeeze(bb),Xboot(length(trainsubjectsTune)+1:end,Vars2pick),design.link);
+                        
+                        if length(find(isnan(getprobstune)==1))>0
+                            error('Warning! There was an error. Check your data files for NaNs')
+                        end
                         
                         %get evaluation metric
                         switch(design.type)
