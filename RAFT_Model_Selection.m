@@ -257,7 +257,7 @@ for mainfold=1:design.numFolds
             end
     end
     if length(find(isnan(winsub(1,:))==1))==length(winsub(1,:));
-        disp(['Warning: No parameters found for mainfold ' num2str(mainfold) '. Possibly no variables passed the thresholds in this mainfold.'])
+        error(['Warning: No parameters found for mainfold ' num2str(mainfold) '. Possibly no variables passed the thresholds in this mainfold. Check LHmerit, design.data, and design.extradata for NaNs'])
     end
     optim_mainfold(:,mainfold)=find_optim(winsub);
     for subfold=1:design.numFolds
