@@ -7,7 +7,6 @@ cd(design.saveto);
 
 fprintf('Performing feature thresholding with %d subjects and %d predictors\n', size(design.data));
 
-design.nvars=size(design.data,2);
 if design.nboot>1
     for n=1:design.nboot
         tmpmerit{n}=NaN(design.numFolds*design.numFolds,design.nvars);
@@ -21,9 +20,21 @@ if design.nboot>1
             trainingsubs=find(design.subfolds(:,outerFold)~=middleFold & design.subfolds(:,outerFold)~=-1); 
             testsubs=find(design.subfolds(:,outerFold)==middleFold & design.subfolds(:,outerFold)~=-1);
             try
-                [Xboot,Yboot]=bootstrapal(design.data([trainingsubs; testsubs],:),design.outcome([trainingsubs; testsubs]),design.Ratio);
+                chklogfolds=0;
+                while chklogfolds==0;
+                    [Xboot,Yboot]=bootstrapal(design.data([trainingsubs; testsubs],:),design.outcome([trainingsubs; testsubs]),design.Ratio);
+                    if length(unique(Yboot(1:length(trainingsubs))))>1 && length(unique(Yboot(length(trainingsubs)+1:end)))>1
+                        chklogfolds=1;
+                    end
+                end
             catch ME
-                [Xboot,Yboot]=bootstrapal(design.data([trainingsubs; testsubs],:),design.outcome([trainingsubs; testsubs])',design.Ratio);
+                chklogfolds=0;
+                while chklogfolds==0;
+                    [Xboot,Yboot]=bootstrapal(design.data([trainingsubs; testsubs],:),design.outcome([trainingsubs; testsubs])',design.Ratio);
+                    if length(unique(Yboot(1:length(trainingsubs))))>1 && length(unique(Yboot(length(trainingsubs)+1:end)))>1
+                        chklogfolds=1;
+                    end
+                end
             end
             for vars=1:design.nvars
                 
@@ -40,7 +51,11 @@ if design.nboot>1
                         truth=Yboot(length(trainingsubs)+1:end);
                         switch(design.balanced)
                             case 'balanced'
+                                try
                                 [tmp1,fpr,tpr] = fastAUC(truth,pred,0);
+                                catch
+                                    [tmp1,fpr,tpr] = fastAUC(truth',pred,0);
+                                end
                                 tmp_merit{folds}(vars)=tmp1;
                             case 'unbalanced'
                                 [prec, tpr, fpr, thresh] = prec_rec_rob_mod(pred, truth,'tstPrecRec', 'plotPR',0, 'numThresh',100);
