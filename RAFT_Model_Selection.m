@@ -3,7 +3,7 @@ function [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats] = 
 % and applies it to the test set
 %
 % for comments and questions please contact lee.jollans@gmail.com
-
+design.nvars=size(design.data,2);
 design.prediction=[];
 fprintf('Performing Mainfold Analysis with %d subjects and %d predictors\n', size(design.data));
 
