@@ -4,7 +4,7 @@ function [design, pass_vars]=RAFT_do_thresh(design, merit_per_var)
 % for comments and questions please contact lee.jollans@gmail.com
 
 fprintf('Determining thresholds with %d subjects and %d predictors\n', size(design.data));
-
+design.nvars=size(design.data,2);
 pass_vars=zeros(design.numFolds, 10, design.numFolds, design.numFolds, design.nvars);
 
 for vars=1:design.nvars
