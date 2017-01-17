@@ -4,7 +4,7 @@ function [LHmerit, vars2use, lambda_values] = RAFT_collect_2nd_level(design)
 % for comments and questions please contact lee.jollans@gmail.com
 
 cd(design.saveto);
-
+design.nvars=size(design.data,2);
 fprintf('Aggregating Middle Fold Analysis and deleting intermediate files\n', size(design.data));
 %%
 LHmerit=NaN(design.numFolds, design.numFolds, design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
