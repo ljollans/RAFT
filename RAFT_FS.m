@@ -9,11 +9,11 @@ fprintf('Performing feature thresholding with %d subjects and %d predictors\n', 
 
 if design.nboot>1
     for n=1:design.nboot
-        tmpmerit{n}=NaN(design.numFolds*design.numFolds,design.nvars);
+        tmpmerit{n}=NaN(design.numFolds*design.numFolds,size(design.data,2));
     end
     for bootct=1:design.nboot
         for folds=1:(design.numFolds*design.numFolds)
-            tmp_merit{folds}=NaN(design.nvars,1);
+            tmp_merit{folds}=NaN(size(design.data,2),1);
         end
         parfor folds=1:(design.numFolds*design.numFolds)
             [outerFold, middleFold]=ind2sub([design.numFolds design.numFolds], folds);
@@ -70,10 +70,10 @@ if design.nboot>1
         end
     end
     for n=1:design.numFolds*design.numFolds
-        merit_per_var{n}=NaN(design.nvars,1);
+        merit_per_var{n}=NaN(size(design.data,2),1);
     end
     parfor folds=1:design.numFolds*design.numFolds
-        for vars=1:design.nvars
+        for vars=1:size(design.data,2)
             x=[];
             for bootct=1:design.nboot
                 x=[x,tmpmerit{bootct}(folds, vars)];
@@ -99,13 +99,13 @@ if design.nboot>1
     end
 else
     for n=1:(design.numFolds*design.numFolds)
-        merit_per_var{n}=NaN(design.nvars,1);
+        merit_per_var{n}=NaN(size(design.data,2),1);
     end
     parfor folds=1:(design.numFolds*design.numFolds)
         [outerFold, middleFold]=ind2sub([design.numFolds design.numFolds], folds);
         trainingsubs=find(design.subfolds(:,outerFold)~=middleFold & design.subfolds(:,outerFold)~=-1); %subs in the training set for each inner fold
         testsubs=find(design.subfolds(:,outerFold)==middleFold & design.subfolds(:,outerFold)~=-1);
-        for vars=1:design.nvars
+        for vars=1:size(design.data,2)
             
             switch(design.type)
                 case 'linear',
