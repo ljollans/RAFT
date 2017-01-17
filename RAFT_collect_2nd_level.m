@@ -8,7 +8,7 @@ cd(design.saveto);
 fprintf('Aggregating Middle Fold Analysis and deleting intermediate files\n', size(design.data));
 %%
 LHmerit=NaN(design.numFolds, design.numFolds, design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
-vars2use=zeros(design.numFolds, design.numFolds, design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas,design.nvars);
+vars2use=zeros(design.numFolds, design.numFolds, design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas,size(design.data,2));
 lambda_values=NaN(design.numFolds, design.numFolds, design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
 
 for folds=1:(design.numFolds*design.numFolds)
