@@ -11,6 +11,8 @@ function [params2pick, Merit, Beta, Vars2pick_main, stats]=RAFT(design)
 
 %%
 cd(design.saveto)
+design.nvars=size(design.data,2);
+
 [merit_per_var] = RAFT_FS(design); 
 [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
 RAFT_2nd_Level(design, pass_vars, [1:(design.numFolds*design.numFolds)]);
