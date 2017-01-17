@@ -6,7 +6,7 @@ function RAFT_2nd_Level(design, pass_vars, folds2run)
 % for comments and questions please contact lee.jollans@gmail.com
 
 cd(design.saveto);
-
+design.nvars=size(design.data,2);
 design.extradata(find(isnan(design.extradata)==1))=0;
 
 fprintf('Performing Model Evaluations with %d subjects and %d predictors\n', size(design.data));
