@@ -213,7 +213,9 @@ for n=1:length(r)
         design.extradata(r(n),c(n))  =  -design.winsorize.howmuch;
     end
 end
+if strcmp(design.type, 'linear')==1
 design.outcome=zscore(design.outcome);
+end
 %%
 cd(design.saveto);
 save('design', 'design');
