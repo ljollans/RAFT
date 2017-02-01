@@ -7,7 +7,7 @@ function looper(rootdir, numreps, FS, method);
 % rootdir: the directory in which your design.mat file is saved and in which the analyses will be saved
 % numreps: number of repetitions of the analysis to be run
 % FS: whether or not feature selection should be used (1=yes, 0=no)
-% method: which regression method should be used (by all_ML), 'EN' or 'MR'
+% method: which regression method should be used (by all_ML), 'EN' (Elatic Net), 'MR' (Multiple Regression), or 'TB' (Treebagger)
 
 for rep=1:numreps;
     for null=1:2
