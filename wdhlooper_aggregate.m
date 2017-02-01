@@ -1,8 +1,27 @@
 function [SORTED_ALL_BETAS AUC F1score]=wdhlooper_aggregate(dir2use, numreps, fileprefix, filepostfix, fileappend4save)
+% function to aggregate results from several runs of the same model
+% example usage: [SORTED_ALL_BETAS AUC F1score]=wdhlooper_aggregate('/home/lee/local/tmp/Results', 5, 'run_', '_null','_5runs_null');
 
-%clear
-%dir='/media/hanni/707E536D7E532ADC/Google Drive/MS ML/SPM/parcellated_modeling/P_out_P3bVismo0/Results_CMSMLlinCOGNz_P3bVis';
-%numreps=8;
+% dir2use is the directory in which the folders for each analysis to be summarized are stored
+
+% numreps is the numebr of models that are to be summarized
+
+% fileprefix and filepostfix are the elements of folder names before and after the integer signalling the number of the model in that folder
+% for instance if I name my folders 'run1', 'run2', ... etc then fileprefix is 'run' and filepostfix is empty ('').
+% if i name my folders 'repetition_1_nullmodel', 'repetition_2_nullmodel'... etc then fileprefix is 'repetition_' and filepostfix is '_nullmodel'
+
+% fileappend4save is the string appended to .csv files with results that are saved in dir2use. I use this to keep track of what analysis 
+% which .csv file belongs to and how many models are summarized
+
+% SORTED_ALL_BETAS: table with table with variable names, in how many CV folds they were chosen on average, 
+% mean beta value if folds where this variable was not chosen are taken as beta=0, 
+% and mean beta value if folds in which this variable was not chosen were ignored
+% variables are sorted by beta value. This Table is also saved as a .csv file automatically.
+
+% AUC: vector containing all AUC (if logistic regression) or R (if lienar regression) values for all summarized analyses
+
+% F1score: vector containing all F1 scores (if logistic regression) or P values (if lienar regression) values for all summarized analyses
+
 thresholdsused=[];
 thresholdspicked=[];
 for wdh=1:numreps
