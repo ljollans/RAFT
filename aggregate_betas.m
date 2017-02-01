@@ -1,4 +1,19 @@
 function [choicefreq sorted_betas betas ALLBetas]=aggregate_betas(Vars2pick_main, Beta, nbrainFeatures, nCoVars, numFolds, varnames, covarnames);
+% This function gives you some summary statistics for your model.
+% load 'Results.mat' into the workspace and run, example:
+
+%[choicefreq sorted_betas betas ALLBetas]=aggregate_betas(Vars2pick_main, Beta, length(design.vars), ...
+% length(design.covarlabels), design.numFolds, design.vars, design.covarlabels);
+
+%choicefreq: vector showing in how many CV folds each variable was chosen
+
+% betas: table with variables, in how many CV folds they were chosen, 
+% mean beta value if folds where this variable was not chosen are taken as beta=0, 
+% and mean beta value if folds in which this variable was not chosen were ignored
+
+% sorted_betas: the same as betas but sorted by mean beta value
+
+% ALLBetas: matrix with the last three columns of sorted_betas
 
 brainbetas=zeros(nbrainFeatures,numFolds);
 pickedbrain=zeros(nbrainFeatures,numFolds);
@@ -15,16 +30,16 @@ for mainfold=1:numFolds
         brainbetas(Vars2pick_main{mainfold}(vars),mainfold)=Beta{mainfold}(1+vars);
         pickedbrain(Vars2pick_main{mainfold}(vars),mainfold)=1;
     end
-    if length(Beta{mainfold})==length(varnames)+length(covarnames)+1
+    %if length(Beta{mainfold})==length(varnames)+length(covarnames)+1
     for covars=1:nCoVars
         covarbetas(covars,mainfold)=Beta{mainfold}(1+length(Vars2pick_main{mainfold})+covars);
         if Beta{mainfold}(1+length(Vars2pick_main{mainfold})+covars)~=0
             pickedcovars(covars,mainfold)=1;
         end
     end
-    else
-        disp(['Ignored covariates in mainfold ' num2str(mainfold)])
-    end
+    %else
+    %    disp(['Ignored covariates in mainfold ' num2str(mainfold)])
+    %end
 end
 choicefreq=sum(pickedbrain,2);
 zeromean_brain=mean(brainbetas,2);
