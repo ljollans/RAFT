@@ -1,7 +1,6 @@
 clear
-% folderstr1='/Users/rob-mac/Google Drive/all code/';
-% folderstr1='C:\Users\EJ\Google Drive\MATLAB\';
-folderstr1='/media/DISK1/Lee/RAFT_278atlas_200117'
+
+folderstr1='/media/DISK1/Lee/'
 for wdh=1
     f_step=[75  200 400  750 1000];
     n_step=[75  200  400  750 1000 2000];
