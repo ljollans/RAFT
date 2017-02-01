@@ -6,15 +6,23 @@ function RAFT_2nd_Level(design, pass_vars, folds2run)
 % for comments and questions please contact lee.jollans@gmail.com
 
 cd(design.saveto);
-design.nvars=size(design.data,2);
-design.extradata(find(isnan(design.extradata)==1))=0;
 
 fprintf('Performing Model Evaluations with %d subjects and %d predictors\n', size(design.data));
 
+design.nvars=size(design.data,2);
+
+fnan=find(isnan(design.extradata)==1);
+if length(fnan)>0
+    disp('Warning! Some covariates have NaN values. These will be changed to zeros.')
+    design.extradata(fnan)=0;
+end
+
+
+%PARFOR
 parfor folds=1:(design.numFolds*design.numFolds)
     if isempty(find(folds==folds2run))==0;
         
-            tmpLHmerit=NaN(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
+    tmpLHmerit=NaN(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
     tmpvars2use=zeros(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas,size(design.data,2));
     tmplambda_values=NaN(design.numFolds, size(design.merit_thresholds,2),design.numAlphas, design.numLambdas);
         
@@ -55,9 +63,9 @@ parfor folds=1:(design.numFolds*design.numFolds)
         
         %loop over alpha values
         for alpha_looper=1:length(design.alpha)
-            ttmpvars2use=zeros(design.nboot,design.numLambdas,size(design.data,2));
+            ttmpvars2use=zeros(design.nboot,design.numLambdas,design.nvars);
             tmpmerit=NaN(design.nboot,design.numLambdas);
-            tmplambda2use=zeros(design.nboot,design.numLambdas);
+            tmplambda2use=NaN(design.nboot,design.numLambdas);
             %bootstrap iterations
             if design.nboot>1
                 for bootct=1:design.nboot
@@ -68,7 +76,7 @@ parfor folds=1:(design.numFolds*design.numFolds)
                     options.lambda=design.lambda;
                     options.alpha=design.alpha(alpha_looper);
                     train=0;
-                    while train==0
+                    while length(train)<2
                         %get bootstrap data subset
                         try
                         [Xboot,Yboot]=bootstrapal([design.data([trainsubjectsTune; testsubjectsTune],:), design.extradata([trainsubjectsTune; testsubjectsTune],:)],design.outcome([trainsubjectsTune; testsubjectsTune]),design.Ratio);
@@ -76,33 +84,11 @@ parfor folds=1:(design.numFolds*design.numFolds)
                             [Xboot,Yboot]=bootstrapal([design.data([trainsubjectsTune; testsubjectsTune],:), design.extradata([trainsubjectsTune; testsubjectsTune],:)],design.outcome([trainsubjectsTune; testsubjectsTune])',design.Ratio);
                         end
                         %make sure we have multiple training subjects
-                        if length(unique(Yboot(length(trainsubjectsTune)+1:end)))>1 
-                            chk1=1;
-                        else
-                            chk1=0;
-                        end
-                        %make sure we have multiple levels in at least one
-                        %predictor
-                        t1=[];
-                        for v=1:length(Vars2pick)
-                            t1(v)=length(unique(Xboot(1:length(trainsubjectsTune), Vars2pick(v))));
-                        end
-                        if isempty(find(t1>1))==0
-                            chk2=1;
-                        else
-                            chk2=0;
-                        end
-                        if chk1==1 && chk2==1
-                            train=1;
-                        end
+                        train=unique(Yboot(length(trainsubjectsTune)+1:end));
                     end
                     
                     %fit the elastic net and get beta and intercept values
-                    try
                     fit=glmnet(Xboot(1:length(trainsubjectsTune), Vars2pick),Yboot(1:length(trainsubjectsTune)),design.family,options);
-                    catch
-                        pause
-                    end
                     B0=fit.beta; intercept=fit.a0;
                     
                     switch(design.type)
@@ -128,12 +114,12 @@ parfor folds=1:(design.numFolds*design.numFolds)
                         b=[intercept; B0];
                     end
                     merit=NaN(1,design.numLambdas);
-                    usedvars=zeros(design.numLambdas,size(design.data,2));
+                    usedvars=zeros(design.numLambdas,design.nvars);
                     
                     for lambda_looper=1:length(design.lambda)
                         bb=b(:,lambda_looper);
                         %identify what variables the elastic net excluded
-                        tmp=zeros(size(design.data,2),1);
+                        tmp=zeros(design.nvars,1);
                         for nchk=1:length(tmpVars2pick)
                             if bb(nchk+1)~=0 %+1 because of the intercept
                                 tmp(Vars2pick(nchk))=1;
@@ -146,6 +132,10 @@ parfor folds=1:(design.numFolds*design.numFolds)
                         
                         %make outcome predictions
                         getprobstune = glmval(squeeze(bb),Xboot(length(trainsubjectsTune)+1:end,Vars2pick),design.link);
+                        
+                        if length(find(isnan(getprobstune)==1))>0
+                            error('Warning! There was an error. Check your data files for NaNs')
+                        end
                         
                         %get evaluation metric
                         switch(design.type)
@@ -206,6 +196,7 @@ parfor folds=1:(design.numFolds*design.numFolds)
                 options.standardize=true;
                 options.nlambda=length(design.lambda);
                 options.lambda=design.lambda;
+                options.lambda_min=min(options.lambda);
                 options.alpha=design.alpha(alpha_looper);
                 X2use=[design.data, design.extradata];
                 %fit the elastic net and get beta and intercept values
@@ -229,14 +220,17 @@ parfor folds=1:(design.numFolds*design.numFolds)
                         end
                 end
                 tmplambda_values(ROIcrit, meritthresh_looper, alpha_looper,:)=fit.lambda;
+                if length(find(fit.lambda==0))>0
+                    disp('zeros in fit.lambda')
+                end
                 try b=[intercept'; B0];
                 catch
                     b=[intercept; B0];
                 end
                 
+                merit=NaN(1,design.numLambdas);
+                usedvars=zeros(design.numLambdas,design.nvars);
                 for lambda_looper=1:length(design.lambda)
-                    merit=zeros(1,design.numLambdas);
-                    usedvars=zeros(design.numLambdas,size(design.data,2));
                     bb=b(:,lambda_looper);
                     
                     %identify what variables the elastic net excluded
@@ -272,8 +266,10 @@ parfor folds=1:(design.numFolds*design.numFolds)
                 tmpLHmerit(ROIcrit, meritthresh_looper, alpha_looper,:)=merit;
             end
         end
+        if design.nboot>1
         %collect the lambda values which the elastic net used
         tmplambda_values(ROIcrit, meritthresh_looper, alpha_looper,:)=mean(tmplambda2use);
+        end
     end
     
     %% fill in duplicates
@@ -299,10 +295,10 @@ b=AUCthresh_looper;
 c=mainfold;
 d=subfolds;
 
-if isempty(find(AUCs2pick(a,b,c,d,:)==1))==0
+if isempty(find(AUCs2pick(a,b,c,d,:)==1))==0 %%pass_vars(occurrence, threshold, mainfold, subfold, idx)
     for e=(a+1):design.numFolds %search one fold up
-        if isempty(prev_ROIcritlooper)==1
-            for f=1:length(design.merit_thresholds)%AUCthreshold
+        for f=1:length(design.merit_thresholds)%AUCthreshold
+            if isempty(prev_ROIcritlooper)==1
                 if isequal(find(AUCs2pick(a,b,c,d,:)==1), find(AUCs2pick(e,f,c,d,:)==1))==1
                     prev_ROIcritlooper=e;
                     prev_AUCthresh=f;
@@ -321,16 +317,7 @@ cd(design.saveto);
     LHmerit2save=tmpLHmerit;
     vars2use2save=tmpvars2use;
     lambda_values2save=tmplambda_values;
-    try
     save([design.saveto filesep 'Second_level_results_' num2str(mainfold) '_' num2str(subfolds)], 'LHmerit2save', 'vars2use2save', 'lambda_values2save');
-    catch ME
-        try
-            mkdir([design.saveto filesep 'tmp']);
-            save([design.saveto filesep 'tmp' filesep 'Second_level_results_' num2str(mainfold) '_' num2str(subfolds)], 'LHmerit2save', 'vars2use2save', 'lambda_values2save');
-        catch ME
-            disp('I do not know what this saving error is! help!')
-        end
-    end
 end
 
 function [prec, tpr, fpr, thresh] = prec_rec_rob_mod(score, target,titleofplot, varargin)
