@@ -1,4 +1,5 @@
 function [mainfold,subfolds]=AssignFolds(nSubjects, nMainFolds, nSubFolds)
+rng('shuffle')
 mainfold=crossvalind('Kfold',nSubjects,nMainFolds);
 subfolds = -1*ones(nSubjects, nMainFolds);
 for subfoldlooper=1:nMainFolds
