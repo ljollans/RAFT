@@ -1,4 +1,4 @@
-function [LHmerit, vars2use, lambda_values] = RAFT_collect_2nd_level(design)
+function RAFT_collect_2nd_level(design)
 % collects and combines intermittent files saved in RAFT_2nd_level
 %
 % for comments and questions please contact lee.jollans@gmail.com
