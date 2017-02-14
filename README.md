@@ -6,11 +6,7 @@ run a model using all_ML.m
 
 randomeffects2.m was used to create simulated data files
 
-simlooper.m is an example of how multiple different model types might be run while simulating data on the fly
-
-looper.m is a function to run multiple iterations of the same model
-
-wdhlooper_aggregate.m summarizes resutls from multiple model iterations
+looper.m is an example of how multiple different model types might be run while simulating data on the fly
 
 Some of the code used here was not written by me, but comes from other sources. Authors will always be listed in the .m file itself.
 To run the majority of this code you will also need to download the following:
