@@ -15,7 +15,13 @@ options.nlambda=1;
 Vars2pick_main=cell(10,1);
 load([design.saveto filesep 'pass_vars']);
 for mainfold=1:design.numFolds
-    load([design.saveto filesep 'vars2use' num2str(mainfold)]);
+    if exist([design.saveto filesep 'vars2use.mat'])~=0
+        load([design.saveto filesep 'vars2use.mat']);
+        eval(['vars2use' num2str(mainfold) '=squeeze(vars2use(mainfold, :,:,:,:,:,:));']);
+    else
+        load([design.saveto filesep 'vars2use' num2str(mainfold)]);
+    end
+    
     [params2pick paramidx paramidx_perfold lambdavalues] = findbestparams(design, mainfold);
     intalpha=4; intlambda=3; intmerit=2; introi=1;
     params2use=params2pick;
@@ -201,14 +207,14 @@ function [optim_mainfold paramidx_persubfold subfoldidx lambdamatrix] = findbest
 
 if exist([design.saveto filesep 'LHmerit.mat'])~=0
     load([design.saveto filesep 'LHmerit.mat']);
-    eval(['LHmerit' num2str(mainfold) '=LHmerit(mainfold, :,:,:,:,:);']);
+    eval(['LHmerit' num2str(mainfold) '=squeeze(LHmerit(mainfold, :,:,:,:,:));']);
 else
 load([design.saveto filesep 'LHmerit' num2str(mainfold)]);
 end
 
 if exist([design.saveto filesep 'lambda_values.mat'])~=0
     load([design.saveto filesep 'lambda_values.mat']);
-    eval(['lambda_values' num2str(mainfold) '=lambda_values(mainfold, :,:,:,:,:);']);
+    eval(['lambda_values' num2str(mainfold) '=squeeze(lambda_values(mainfold, :,:,:,:,:));']);
 else
 load([design.saveto filesep 'lambda_values' num2str(mainfold)]);
 end
