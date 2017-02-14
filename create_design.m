@@ -1,4 +1,4 @@
-function [design]=create_design(data, datalabels, covariates, covarlabels, outcome, type, nboot, numFolds, numLambdas, numAlphas, bagcrit, clean,saveto, subid, balanced, winsorize_data, winsorize_extradata, exclude_binary_vars)
+function [design]=create_design(data, datalabels, covariates, covarlabels, outcome, type, nboot, numFolds, numLambdas, numAlphas, bagcrit, clean,saveto, subid, balanced, winsorize_data, winsorize_extradata, exclude_binary_vars, minalpha)
 % data: input features
 % datalabels: variable names for input features
 % covariates: features that will not be included in the feature selection step if this step is performed
@@ -72,7 +72,10 @@ if size(design.extradata,1)~=size(design.data,1)
 end
 
 if clean==1
-    s1=sum(design.data,1);     f1=find(s1==0);
+    for v=1:size(design.data,2)
+        s1(v)=length(unique(design.data(:,v)));
+    end
+    f1=find(s1==1);
     design.data(:,f1)=[];
     if strcmp(class(design.vars), 'cell')==1
         for n=1:length(f1)
@@ -84,11 +87,15 @@ if clean==1
     end
     design.nvars=size(design.data,2);
     
-    s2=sum(design.data,2);f2=find(s2==0);
+    for v=1:size(design.data,1)
+        s2(v)=length(unique(design.data(v,:)));
+    end
+    f2=find(s2==1);
     design.data(f2,:)=[];design.outcome(f2)=[];design.subid(f2)=[];design.extradata(f2,:)=[];
     
-    [r c]=find(isnan(design.data)==1);r=unique(r);
-    design.subid(r)=[];design.extradata(r,:)=[];design.data(r,:)=[];design.outcome(r)=[];
+    [r c]=find(isnan(design.data)==1);
+    r=unique(r); design.subid(r)=[];design.extradata(r,:)=[];design.data(r,:)=[];design.outcome(r)=[];
+      
     
     [r c]=find(isnan(design.extradata)==1);r=unique(r);
     design.subid(r)=[];design.extradata(r,:)=[];design.data(r,:)=[];design.outcome(r)=[];
@@ -132,7 +139,7 @@ end
 %%
 [design.mainfold,design.subfolds]=AssignFolds(size(design.data,1),design.numFolds,design.numFolds);
 design.lambda = logspace(-1,0,design.numLambdas);
-design.alpha = linspace(0.01,1.0,design.numAlphas);
+design.alpha = linspace(minalpha,1.0,design.numAlphas);
 if isempty(winsorize_data)==0
     design.winsorize.who.data = winsorize_data; %1 to Winsorize, 0 otherwise
 else

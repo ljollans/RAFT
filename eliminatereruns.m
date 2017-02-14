@@ -13,15 +13,19 @@ if exist([savestr filesep 'Results.mat'])==0
         load('vars2use.mat');
         load('lambda_values.mat');
         load('pass_vars.mat');
-        [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = RAFT_Model_Selection(design, vars2use, LHmerit, lambda_values, pass_vars, 1, 1, 1);
+        [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats] = RAFT_Model_Selection_140217(design, 1);
     elseif exist([savestr filesep 'merit_per_var.mat'])==0
         [params2pick, Merit, Beta, Vars2pick_main, stats]=RAFT(design);
     elseif exist([savestr filesep 'pass_vars.mat'])==0
         load('merit_per_var.mat')
         [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
         RAFT_2nd_Level(design, pass_vars, [1:(design.numFolds*design.numFolds)]);
-        [LHmerit, vars2use, lambda_values] = RAFT_collect_2nd_level(design);
-        [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = RAFT_Model_Selection(design, vars2use, LHmerit, lambda_values, pass_vars, 1, 1, 1);
+        if size(design.data,2)>=1000
+            RAFT_collect_2nd_level_memorysave(design);
+        else
+            RAFT_collect_2nd_level(design);
+        end
+        [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats] = RAFT_Model_Selection_140217(design, 1);
     else
         s=dir(filedir);
         finished_folds=[];
@@ -56,8 +60,12 @@ if exist([savestr filesep 'Results.mat'])==0
         end
         load('pass_vars.mat')
         RAFT_2nd_Level(design, pass_vars, folds2do);
-        [LHmerit, vars2use, lambda_values] = RAFT_collect_2nd_level(design);
-        [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = RAFT_Model_Selection(design, vars2use, LHmerit, lambda_values, pass_vars, 1, 1, 1);
+        if size(design.data,2)>=1000
+            RAFT_collect_2nd_level_memorysave(design);
+        else
+            RAFT_collect_2nd_level(design);
+        end
+        [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats] = RAFT_Model_Selection_140217(design, 1);
     end
 else
     load('Results.mat')

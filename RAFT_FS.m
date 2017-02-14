@@ -4,9 +4,9 @@ function [merit_per_var] = RAFT_FS(design)
 % for comments and questions please contact lee.jollans@gmail.com
 
 cd(design.saveto);
-design.nvars=size(design.data,2);
-fprintf('Performing feature thresholding with %d subjects and %d predictors\n', size(design.data));
 
+fprintf('Performing feature thresholding with %d subjects and %d predictors\n', size(design.data));
+design.nvars=size(design.data,2);
 if design.nboot>1
     for n=1:design.nboot
         tmpmerit{n}=NaN(design.numFolds*design.numFolds,size(design.data,2));
