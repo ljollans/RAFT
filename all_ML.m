@@ -8,17 +8,22 @@ cd(design.saveto);
 if feature_selection==1 & strcmp(method, 'EN')==1
     stats=eliminatereruns(design.saveto)
 elseif feature_selection==1 & strcmp(method, 'MR')==1
-    if exist([design.saveto filesep 'merit_per_var.mat'])==0
-        [merit_per_var] = RAFT_FS(design);
+    if ~exist([design.saveto filesep 'merit_per_var.mat'], 'file')
+        if exist([design.saveto filesep 'tmpmerit.mat'], 'file')
+            load([design.saveto filesep 'tmpmerit.mat'])
+            [merit_per_var] = RAFT_FS(design, tmpmerit);
+        else
+            [merit_per_var] = RAFT_FS(design, []);
+        end
     else
         load([design.saveto filesep 'merit_per_var.mat']);
     end
-    if exist([design.saveto filesep 'pass_vars.mat'])==0
+    if ~exist([design.saveto filesep 'pass_vars.mat'], 'file')
         [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
     else
-        load([design.saveto filesep 'pass_vars.mat']);
+        load([design.saveto filesep 'pass_vars.mat'], 'file');
     end
-    if exist([design.saveto filesep 'LHmerit.mat'])==0
+    if ~exist([design.saveto filesep 'LHmerit.mat'], 'file')
         [LHmerit, vars2use] = MR_2nd_level(design, pass_vars, [1:design.numFolds]);
     else
         load([design.saveto filesep 'LHmerit.mat']);
@@ -33,7 +38,12 @@ elseif feature_selection==0 & strcmp(method, 'TB')==1
     [stats]=do_random_forest_matlab(design);
 elseif feature_selection==1 & strcmp(method, 'TB')==1
     if exist([design.saveto filesep 'merit_per_var.mat'])==0
-        [merit_per_var] = RAFT_FS(design);
+        if exist([design.saveto filesep 'tmpmerit.mat'], 'file')
+            load([design.saveto filesep 'tmpmerit.mat'])
+            [merit_per_var] = RAFT_FS(design, tmpmerit);
+        else
+            [merit_per_var] = RAFT_FS(design, []);
+        end
     else
         load([design.saveto filesep 'merit_per_var.mat']);
     end

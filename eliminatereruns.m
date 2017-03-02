@@ -15,7 +15,28 @@ if exist([savestr filesep 'Results.mat'])==0
         load('pass_vars.mat');
         [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats] = RAFT_Model_Selection_140217(design, 1);
     elseif exist([savestr filesep 'merit_per_var.mat'])==0
-        [params2pick, Merit, Beta, Vars2pick_main, stats]=RAFT(design);
+        if exist([design.saveto filesep 'tmpmerit.mat'], 'file')
+            load([design.saveto filesep 'tmpmerit.mat'])
+            [merit_per_var] = RAFT_FS(design, tmpmerit);
+            [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
+            RAFT_2nd_Level(design, pass_vars, [1:(design.numFolds*design.numFolds)]);
+            if size(design.data,2)>=1000
+                RAFT_collect_2nd_level_memorysave(design);
+            else
+                RAFT_collect_2nd_level(design);
+            end
+            [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats] = RAFT_Model_Selection_140217(design, 1);
+        else
+            [merit_per_var] = RAFT_FS(design, []);
+            [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
+            RAFT_2nd_Level(design, pass_vars, [1:(design.numFolds*design.numFolds)]);
+            if size(design.data,2)>=1000
+                RAFT_collect_2nd_level_memorysave(design);
+            else
+                RAFT_collect_2nd_level(design);
+            end
+            [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats] = RAFT_Model_Selection_140217(design, 1);
+        end
     elseif exist([savestr filesep 'pass_vars.mat'])==0
         load('merit_per_var.mat')
         [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);

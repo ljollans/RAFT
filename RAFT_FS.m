@@ -1,23 +1,27 @@
-function [merit_per_var] = RAFT_FS(design)
+function [merit_per_var] = RAFT_FS(design, tmpmerit)
 % feature selection step of Regularized Adaptive Feature Thresholding
 %
 % for comments and questions please contact lee.jollans@gmail.com
 
 cd(design.saveto);
-design.nvars=size(design.data,2);
-fprintf('Performing feature thresholding with %d subjects and %d predictors\n', size(design.data));
 
+fprintf('Performing feature thresholding with %d subjects and %d predictors\n', size(design.data));
+design.nvars=size(design.data,2);
+warning off
 if design.nboot>1
-    for n=1:design.nboot
-        tmpmerit{n}=NaN(design.numFolds*design.numFolds,size(design.data,2));
+    if ~isempty(tmpmerit)
+        ad=length(tmpmerit)+1;
+    else
+        ad=1;
     end
-    for bootct=1:design.nboot
+    for bootct=ad:design.nboot
+        tmpmerit{ad}=NaN(design.numFolds*design.numFolds,size(design.data,2));
         for folds=1:(design.numFolds*design.numFolds)
             tmp_merit{folds}=NaN(size(design.data,2),1);
         end
         parfor folds=1:(design.numFolds*design.numFolds)
             [outerFold, middleFold]=ind2sub([design.numFolds design.numFolds], folds);
-            trainingsubs=find(design.subfolds(:,outerFold)~=middleFold & design.subfolds(:,outerFold)~=-1); 
+            trainingsubs=find(design.subfolds(:,outerFold)~=middleFold & design.subfolds(:,outerFold)~=-1);
             testsubs=find(design.subfolds(:,outerFold)==middleFold & design.subfolds(:,outerFold)~=-1);
             try
                 chklogfolds=0;
@@ -52,7 +56,7 @@ if design.nboot>1
                         switch(design.balanced)
                             case 'balanced'
                                 try
-                                [tmp1,fpr,tpr] = fastAUC(truth,pred,0);
+                                    [tmp1,fpr,tpr] = fastAUC(truth,pred,0);
                                 catch
                                     [tmp1,fpr,tpr] = fastAUC(truth',pred,0);
                                 end
@@ -68,6 +72,7 @@ if design.nboot>1
         for folds=1:(design.numFolds*design.numFolds)
             tmpmerit{bootct}(folds,:)=tmp_merit{folds};
         end
+        save([design.saveto filesep 'tmpmerit.mat'], 'tmpmerit');
     end
     for n=1:design.numFolds*design.numFolds
         merit_per_var{n}=NaN(size(design.data,2),1);
