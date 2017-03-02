@@ -1,15 +1,6 @@
-function looper(rootdir, numreps, FS, method);
-% this function automatically repeats your analysis a number of times
-
-% example usage:
-% looper('/home/lee/local/analysis1', 10, 1, 'EN')
-
-% rootdir: the directory in which your design.mat file is saved and in which the analyses will be saved
-% numreps: number of repetitions of the analysis to be run
-% FS: whether or not feature selection should be used (1=yes, 0=no)
-% method: which regression method should be used (by all_ML), 'EN' (Elatic Net), 'MR' (Multiple Regression), or 'TB' (Treebagger)
-
-for rep=1:numreps;
+function looper(rootdir, reps, FS, method);
+for reploop=1:length(reps)
+    rep=reps(reploop);
     for null=1:2
         load([rootdir filesep 'design.mat'])
         if null==1
