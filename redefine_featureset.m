@@ -5,14 +5,14 @@ function [design merit_per_var]=redefine_featureset(olddir, newdir, numreps, var
 % '/home/lee/local/MS ML/Results_CMSMLlinCOGNzMO12_P3bVis_new', 20, 2:1620, 0);
 %
 % olddir: directory where old analyses are saved
-% newdir: directory where new analyses should be saved
+% newdir: directory where new analyses should be saved. if this is the same as olddir and you didn't set deleteprev to 1 then nothing will happen
 % numreps: number of repetitions - constrained by number of analyses in olddir
 % vars2keep: indices of variables which should be kept, i.e. exclude the ones you don't want anymore
 % covars2keep: indices of covariates which should be kept, i.e. exclude the ones you don't want anymore
 % deleteprev: if deleteprev=1 then any results that were already saved in newdir will be deleted. if deleteprev=0 then results in newdir will not be deleted, i.e. analyses will not be rerun
 % doanalysis: if doanalysis=1 then the analysis will be continued right from this script, otherwise just the two variables will be saved
 % savevars: if savevars==0 and doanalysis=0 then the files will not be saved into a new folder
-% savestr: string to append when making folder name
+% savestr: string to append when making folder name, needs to be the same as the extension of the folders it's looking for
 
 for rep=1:numreps
     % load the files from feature thresholding in the original analysis
@@ -20,13 +20,13 @@ for rep=1:numreps
     load([olddir filesep num2str(rep) savestr filesep 'merit_per_var.mat']);
     % if the folder already exists from a previous analysis and
     % deletevars was turned on then delete the previous results
-    if isequal(deleteprev,1) && exist([newdir filesep num2str(rep) nullstr], 'dir') && savevars==1
+    if isequal(deleteprev,1) && exist([newdir filesep num2str(rep) savestr], 'dir') && savevars==1
         rmdir([newdir filesep num2str(rep) nullstr]);
     end
     % if the folder doesn't already exist make it (it would still exist if deletevars
     % is turned off and part or all of the analysis was already conducted)
-    if ~exist([newdir filesep num2str(rep) nullstr], 'dir') && savevars==1
-        mkdir([newdir filesep num2str(rep) nullstr]);
+    if ~exist([newdir filesep num2str(rep) savestr], 'dir') && savevars==1
+        mkdir([newdir filesep num2str(rep) savestr]);
     end
     % if deletevars is turned off and part or all of the analysis was
     % already conducted then this bit will not be done
@@ -46,7 +46,7 @@ for rep=1:numreps
             save([design.saveto filesep 'merit_per_var.mat'], 'merit_per_var');
         end
     end
-    if doanalysis==1
+    if do_analysis==1
         stats=eliminatereruns([newdir filesep num2str(rep) savestr]);
     end
 end
