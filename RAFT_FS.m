@@ -11,11 +11,18 @@ warning off
 if design.nboot>1
     if ~isempty(tmpmerit)
         ad=length(tmpmerit)+1;
+        todo=1:design.nboot;
+        for chk=1:length(tmpmerit)
+            if ~isnan(tmpmerit{chk}(1,1))
+                todo(find(todo==chk))=[];
+            end
+        end
     else
-        ad=1;
+        todo=1:design.nboot;
     end
-    for bootct=ad:design.nboot
-        tmpmerit{ad}=NaN(design.numFolds*design.numFolds,size(design.data,2));
+    for boot2do=1:length(todo)
+        bootct=todo(boot2do);
+        tmpmerit{bootct}=NaN(design.numFolds*design.numFolds,size(design.data,2));
         for folds=1:(design.numFolds*design.numFolds)
             tmp_merit{folds}=NaN(size(design.data,2),1);
         end
