@@ -1,4 +1,8 @@
 function [Beta, pred, stats]=do_EN(X, truth, nboot, bagcrit, saveto, type)
+
+% latest update: may 30th 2017
+
+Y=truth;
 switch type
     case 'linear'
         family='gaussian';
@@ -12,7 +16,7 @@ end
 lambda= fliplr(logspace(-3,0,5));
 alpha = linspace(0.01,1.0,5);
 
-parfor folds=1:100
+for folds=1:100
     tmplambda2use=[];
     [mainfold subfolds]=ind2sub([10 10], folds);
     trainsubjectsTune = find(mf ~= mainfold & sf(:,mainfold) ~=subfolds);
@@ -66,16 +70,16 @@ parfor folds=1:100
             for bootct=1:nboot
                 train=0;
                 while length(train)<2
-                    [Xboot,Yboot,indexselect]=bootstrapal(X,truth,2/3);
-                    train=unique(Yboot(testsubjectsTune));
+                    [Xboot,Yboot,indexselect]=bootstrapal(X(trainsubjectsTune,:),truth,2/3);
+                    train=unique(Yboot);
                 end
                 
-                fit=glmnet(Xboot(trainsubjectsTune, :),Yboot(trainsubjectsTune),family,options);
+                fit=glmnet(Xboot,Yboot,family,options);
                 B0=fit.beta; intercept=fit.a0;
                 
                 while size(B0,2)<options.nlambda
                     options.lambda=linspace(lambda(1)+lambda(1)/10, 1, length(lambda));
-                    fit=glmnet(Xboot(trainsubjectsTune, :),Yboot(trainsubjectsTune),family,options);
+                    fit=glmnet(Xboot,Yboot,family,options);
                     B0=fit.beta; intercept=fit.a0;
                 end
                 try
@@ -94,12 +98,12 @@ parfor folds=1:100
                 tmplambda2use(bootct,:)=fit.lambda;
                 for lambda_looper=1:length(lambda)
                     bb=b(:,lambda_looper);
-                    getprobstune = glmval(squeeze(bb),Xboot(testsubjectsTune,:),link);
+                    getprobstune = glmval(squeeze(bb),X(testsubjectsTune,:),link);
                     switch type
                         case 'linear',
-                            tmp1 = -sqrt(abs(Yboot(testsubjectsTune)-getprobstune)'*abs(Yboot(testsubjectsTune)-getprobstune)/length(Yboot(testsubjectsTune)));
+                            tmp1 = -sqrt(abs(Y(testsubjectsTune)-getprobstune)'*abs(Y(testsubjectsTune)-getprobstune)/length(Y(testsubjectsTune)));
                         case 'logistic',
-                            [prec, tpr] = prec_rec_rob_mod(getprobstune, Yboot(testsubjectsTune),'tstPrecRec', 'plotPR',0, 'numThresh',100);
+                            [prec, tpr] = prec_rec_rob_mod(getprobstune, Y(testsubjectsTune),'tstPrecRec', 'plotPR',0, 'numThresh',100);
                             fscore=(prec.*tpr)./(prec+tpr);
                             tmp1=max(fscore);
                     end
@@ -169,15 +173,15 @@ for mainfold=1:10
     tstGetProbs{mainfold} = glmval(Beta{mainfold},X(trainsubjects,:),link);
     tstpred(trainsubjects)=tstGetProbs{mainfold};
     switch type
-    case 'linear',
-        [Merit.train_r(mainfold),Merit.train_p(mainfold)]=corr(tstpred(trainsubjects)', truth(trainsubjects));
-        Merit.train_mse(mainfold)=(abs(truth(trainsubjects)-tstpred(trainsubjects)')'*abs(truth(trainsubjects)-tstpred(trainsubjects)')/length(truth(trainsubjects)));
-    case 'logistic'
-%         [Merit.overall_AUC{mainfold},Merit.fpr{mainfold},Merit.tpr{mainfold}] = fastAUC(logical(truth),pred',0);
-%         [Merit.prec{mainfold}, Merit.tpr{mainfold}, Merit.fpr{mainfold}, Merit.thresh{mainfold}] = prec_rec_rob_mod(pred', logical(truth),'tstPrecRec', 'plotPR',0);
-%         fscore=(Merit.prec{mainfold}.*Merit.tpr{mainfold})./(Merit.prec{mainfold}+Merit.tpr{mainfold});
-%         Merit.F1score{mainfold}=max(fscore);
-end
+        case 'linear',
+            [Merit.train_r(mainfold),Merit.train_p(mainfold)]=corr(tstpred(trainsubjects)', truth(trainsubjects));
+            Merit.train_mse(mainfold)=(abs(truth(trainsubjects)-tstpred(trainsubjects)')'*abs(truth(trainsubjects)-tstpred(trainsubjects)')/length(truth(trainsubjects)));
+        case 'logistic'
+            [Merit.overall_AUC{mainfold},Merit.fpr{mainfold},Merit.tpr{mainfold}] = fastAUC(logical(truth),pred',0);
+            [Merit.prec{mainfold}, Merit.tpr{mainfold}, Merit.fpr{mainfold}, Merit.thresh{mainfold}] = prec_rec_rob_mod(pred', logical(truth),'tstPrecRec', 'plotPR',0);
+            fscore=(Merit.prec{mainfold}.*Merit.tpr{mainfold})./(Merit.prec{mainfold}+Merit.tpr{mainfold});
+            Merit.F1score{mainfold}=max(fscore);
+    end
 end
 
 switch type
@@ -201,5 +205,6 @@ save('betas', 'Beta');
 save('prediction', 'pred');
 save('params2use', 'alpha2use', 'lambda2use');
 save('results', 'stats');
-save('Results',  'pred', 'Beta', 'alpha2use', 'lambda2use', 'stats', 'Merit', 'mf', 'sf');
+% save('Merit', , 'Merit');
+save('Results',  'pred', 'Beta', 'alpha2use', 'lambda2use', 'stats', 'mf', 'sf');
 end

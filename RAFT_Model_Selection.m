@@ -1,8 +1,10 @@
-function [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats] = RAFT_Model_Selection(design, vars2use, LHmerit, lambda_values, pass_vars, use_pass_vars, startROIthresh, startmeritthresh)
+function [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats, params2use] = RAFT_Model_Selection_300517(design, use_pass_vars)
 % select the best performing model across subfolds for each main CV fold
 % and applies it to the test set
 %
 % for comments and questions please contact lee.jollans@gmail.com
+
+% latest update: may 30th 2017
 
 design.prediction=[];
 fprintf('Performing Mainfold Analysis with %d subjects and %d predictors\n', size(design.data));
@@ -12,35 +14,40 @@ outcome2use=design.outcome;
 options=glmnetSet;
 options.standardize=true;
 options.nlambda=1;
-
-[params2pick paramidx subfoldidx lambdavalues] = findbestparams(LHmerit, design, lambda_values, startROIthresh, startmeritthresh);
-intalpha=4; intlambda=3; intmerit=2; introi=1;
-params2use=params2pick;
+Vars2pick_main=cell(10,1);
+load([design.saveto filesep 'pass_vars']);
 for mainfold=1:design.numFolds
+    if exist([design.saveto filesep 'vars2use.mat'])~=0
+        load([design.saveto filesep 'vars2use.mat']);
+        eval(['vars2use' num2str(mainfold) '=squeeze(vars2use(mainfold, :,:,:,:,:,:));']);
+    else
+        load([design.saveto filesep 'vars2use' num2str(mainfold)]);
+    end
+    
+    [params2pick(:,mainfold) paramidx paramidx_perfold lambdavalues] = findbestparams(design, mainfold);
+    intalpha=4; intlambda=3; intmerit=2; introi=1;
+    params2use(:,mainfold)=params2pick(:,mainfold);
     %%
     Vars2pick_main{mainfold}=[];
-    chkr=0;
-    
-    paramidx_perfold=squeeze(subfoldidx(:,mainfold,:));
     [rf, cf]=find(isnan(paramidx_perfold)==1);
     for n=1:length(cf)
         paramidx_perfold(rf(n), cf(n))=round(nanmean(squeeze(paramidx_perfold(rf(n),:))));
     end
+    trackvars=NaN(design.numFolds,size(design.data,2));
     for subfold=1:design.numFolds
         tmpidx=squeeze(paramidx_perfold(:,subfold));
-        folds=sub2ind([design.numFolds design.numFolds], mainfold, subfold);
         try
             if use_pass_vars==0
-                trackvars(mainfold,subfold,:)=squeeze(vars2use(mainfold, subfold,tmpidx(introi),tmpidx(intmerit),tmpidx(intalpha),tmpidx(intlambda),:));
+                trackvars(subfold,:)=eval(['squeeze(vars2use' num2str(mainfold) '(subfold,tmpidx(introi),tmpidx(intmerit),tmpidx(intalpha),tmpidx(intlambda),:));']);
             elseif use_pass_vars==1
-                trackvars(mainfold,subfold,:)=squeeze(pass_vars(tmpidx(introi),tmpidx(intmerit),mainfold, subfold,:));
+                trackvars(subfold,:)=squeeze(pass_vars(tmpidx(introi),tmpidx(intmerit),mainfold, subfold,:));
             end
-        catch ME
+        catch
             disp(mainfold)
         end
     end
-    varsscount(mainfold,:)=sum(trackvars(mainfold,:,:),2);
-    Vars2pick_main{mainfold}=find(varsscount(mainfold,:)>=params2use(introi,mainfold));
+    varsscount=sum(trackvars);
+    Vars2pick_main{mainfold}=find(varsscount>=params2use(introi,mainfold));
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % in case no variables were found matching the identified
@@ -146,26 +153,69 @@ for mainfold=1:design.numFolds
     testsubjects=find(design.mainfold == mainfold);
     
     options.alpha=params2use(intalpha,mainfold);
-    options.lambda=params2use(intlambda,mainfold);
-    try
-        fit=glmnet([design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.outcome(trainsubjects),design.family,options);
-    catch
-        design.outcome=design.outcome';
-        fit=glmnet([design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.outcome(trainsubjects),design.family,options);
+    if options.alpha<.1
+        options.alpha=.1;
     end
-    B0=fit.beta;
+    options.lambda=params2use(intlambda,mainfold);
+    %     if options.lambda<.7
+    %         options.lambda=.7;
+    %     end
+    
+    if design.nboot>1
+        clear BB
+        for bootct=1:design.nboot
+            %glmnet options
+                %get bootstrap data subset
+                try
+                    [Xboot,Yboot]=bootstrapal([design.data([trainsubjects],:), design.extradata([trainsubjects],:)],design.outcome([trainsubjects]),design.Ratio);
+                catch ME
+                    [Xboot,Yboot]=bootstrapal([design.data([trainsubjects],:), design.extradata([trainsubjects],:)],design.outcome([trainsubjects])',design.Ratio);
+                end
+
+            
+            try
+                fit=glmnet(Xboot(1:length(trainsubjects),[Vars2pick_main{mainfold}, size(Xboot,2)]),Yboot(1:length(trainsubjects)),design.family,options);
+            catch
+                design.outcome=design.outcome';
+                fit=glmnet(Xboot(1:length(trainsubjects),[Vars2pick_main{mainfold}, size(Xboot,2)]),Yboot(1:length(trainsubjects)),design.family,options);
+            end
+            BB(:,bootct)=[fit.a0;fit.beta];
+        end
+        b=median(BB');
+    else
+        try
+            fit=glmnet([design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.outcome(trainsubjects),design.family,options);
+        catch
+            design.outcome=design.outcome';
+            fit=glmnet([design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.outcome(trainsubjects),design.family,options);
+        end
+        B0=fit.beta;
+        try b=[fit.a0'; fit.beta];
+        catch
+            b=[fit.a0; fit.beta];
+        end
+    end
     
     switch(design.type)
         case 'linear',
-            Beta{mainfold}=[fit.a0; B0];
+            Beta{mainfold}=b';
+            try
             GetProbs{mainfold} = glmval(Beta{mainfold},[design.data(testsubjects,Vars2pick_main{mainfold}), design.extradata(testsubjects,:)],design.link);
-            design.prediction(testsubjects)=GetProbs{mainfold};
-            Merit(mainfold)= -sqrt(abs(design.outcome(testsubjects)-GetProbs{mainfold})'*abs(design.outcome(testsubjects)-GetProbs{mainfold})/length(design.outcome(testsubjects)));
-            [r(mainfold), p(mainfold)] = corr(GetProbs{mainfold}, design.outcome(testsubjects));
+            catch
+                GetProbs{mainfold} = glmval(Beta{mainfold}',[design.data(testsubjects,Vars2pick_main{mainfold}), design.extradata(testsubjects,:)],design.link);
+            end
+                design.prediction(testsubjects)=GetProbs{mainfold};
+            Merit.mse(mainfold)= -sqrt(abs(design.outcome(testsubjects)-GetProbs{mainfold})'*abs(design.outcome(testsubjects)-GetProbs{mainfold})/length(design.outcome(testsubjects)));
+            [Merit.r(mainfold), Merit.p(mainfold)] = corr(GetProbs{mainfold}, design.outcome(testsubjects));
+            %% to check overfit
+            train_GetProbs{mainfold} = glmval(Beta{mainfold}',[design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.link);
+            train_prediction(trainsubjects)=train_GetProbs{mainfold};
+            Merit.train_mse(mainfold)= -sqrt(abs(design.outcome(trainsubjects)'-train_prediction(trainsubjects))*abs(design.outcome(trainsubjects)'-train_prediction(trainsubjects))'/length(design.outcome(trainsubjects)));
+            [Merit.train_r(mainfold), Merit.train_p(mainfold)] = corr(train_prediction(trainsubjects)', design.outcome(trainsubjects));
         case 'logistic',
-            Beta{mainfold}=[fit.a0; B0];
+            Beta{mainfold}=b;
             GetProbs{mainfold} = glmval(Beta{mainfold},[design.data(testsubjects,Vars2pick_main{mainfold}), design.extradata(testsubjects,:)],design.link);
-            [r p]=corr(design.outcome(testsubjects), GetProbs{mainfold});
+%             [r p]=corr(design.outcome(testsubjects), GetProbs{mainfold});
             design.prediction(testsubjects)=GetProbs{mainfold};
             switch(design.balanced)
                 case 'balanced'
@@ -198,58 +248,56 @@ end
     end
 end
 
-function [optim_mainfold paramidx_persubfold subfoldidx lambdamatrix] = findbestparams(AUCTune_in, design, lambda_values, startROIthresh, startAUCthresh)
+function [optim_mainfold paramidx_persubfold subfoldidx lambdamatrix] = findbestparams(design, mainfold)
 
-for folds=1:design.numFolds*design.numFolds
-    [mainfold subfolds]=ind2sub([design.numFolds design.numFolds], folds);
-    AUCTune(:,:,:,:,mainfold,subfolds)=squeeze(AUCTune_in(mainfold, subfolds, startROIthresh:end, startAUCthresh:end, :,:));
-    lambdamatrix(:,:,:,:,mainfold,subfolds)=squeeze(lambda_values(mainfold, subfolds, startROIthresh:end, startAUCthresh:end, :,:));
+if exist([design.saveto filesep 'LHmerit.mat'])~=0
+    load([design.saveto filesep 'LHmerit.mat']);
+    eval(['LHmerit' num2str(mainfold) '=squeeze(LHmerit(mainfold, :,:,:,:,:));']);
+else
+load([design.saveto filesep 'LHmerit' num2str(mainfold)]);
 end
 
-alphas=design.alpha;
-ROIthresholds=startROIthresh:design.numFolds;
-for mainfold=1:design.numFolds
-    AUCthresholds=design.merit_thresholds(mainfold,startAUCthresh:end);
-    for subfold=1:design.numFolds
-        for roi=1:size(AUCTune,1)
-            for auc=1:size(AUCTune,2)
-                for alph=1:size(AUCTune,3)
-                    for lam=1:size(AUCTune,4)
-                        alphamatrix(roi, auc, alph, lam, mainfold, subfold)=alphas(alph);
-                        AUCthreshmatrix(roi,auc,alph,lam, mainfold, subfold)=AUCthresholds(auc);
-                        ROIcritmatrix(roi,auc,alph,lam, mainfold, subfold)=ROIthresholds(roi);
-                    end
-                end
-            end
-        end
-    end
+if exist([design.saveto filesep 'lambda_values.mat'])~=0
+    load([design.saveto filesep 'lambda_values.mat']);
+    eval(['lambda_values' num2str(mainfold) '=squeeze(lambda_values(mainfold, :,:,:,:,:));']);
+else
+load([design.saveto filesep 'lambda_values' num2str(mainfold)]);
+end
+
+for idx=1:([design.numFolds*design.numFolds*10*design.numAlphas*design.numLambdas])
+    [subfold, roi, auc, alph, lam]=ind2sub([design.numFolds, design.numFolds, 10, design.numAlphas, design.numLambdas], idx);
+    alphamatrix(roi, auc, alph, lam, subfold)=design.alpha(alph);
+    meritthreshmatrix(roi,auc,alph,lam, subfold)=design.merit_thresholds(mainfold,auc);
+    ROIcritmatrix(roi,auc,alph,lam, subfold)=roi;
+    lambdamatrix(roi, auc, alph, lam, subfold)=eval(['lambda_values' num2str(mainfold) '(subfold, roi, auc, alph, lam)']);
+    critvar(roi, auc, alph, lam, subfold)=eval(['LHmerit' num2str(mainfold) '(subfold, roi, auc, alph, lam)']);
 end
 win=zeros(4,design.numFolds);
 
 %% find the best parameters per subfold
-
-for mainfold=1:design.numFolds
     %%
     winsub=[];
     for subfold=1:design.numFolds
-        critvarperfold=squeeze(AUCTune(:,:,:,:,mainfold,subfold));
-        lambdaperfold=squeeze(lambdamatrix(:,:,:,:,mainfold,subfold));
-        alphaperfold=squeeze(alphamatrix(:,:,:,:,mainfold,subfold));
-        AUCthreshperfold=squeeze(AUCthreshmatrix(:,:,:,:,mainfold,subfold));
-        ROIcritperfold=squeeze(ROIcritmatrix(:,:,:,:,mainfold,subfold));
-        [bestvalpersubfold(mainfold, subfold) bestparamspersubfold(mainfold,subfold)]=max(critvarperfold(:));
+        % get only relevant vars
+        critvarperfold=squeeze(critvar(:,:,:,:,subfold));
+        lambdaperfold=squeeze(lambdamatrix(:,:,:,:,subfold));
+        alphaperfold=squeeze(alphamatrix(:,:,:,:,subfold));
+        meritthreshperfold=squeeze(meritthreshmatrix(:,:,:,:,subfold));
+        ROIcritperfold=squeeze(ROIcritmatrix(:,:,:,:,subfold));
+        
+        [bestvalpersubfold(subfold) bestparamspersubfold(subfold)]=max(critvarperfold(:));
         findmax=find(critvarperfold==max((critvarperfold(:))));
         
         if length(findmax)==1
             winsub(4,subfold)=alphaperfold(findmax); %these are all the parameter combinations that results in the best outcome...could be one or multiple
             winsub(3,subfold)=lambdaperfold(findmax);
-            winsub(2,subfold)=AUCthreshperfold(findmax);
+            winsub(2,subfold)=meritthreshperfold(findmax);
             winsub(1,subfold)=ROIcritperfold(findmax);
         elseif length(findmax)>1
             best_sub=[];
             best_sub(4,:)=alphaperfold(findmax); %these are all the parameter combinations that results in the best outcome...could be one or multiple
             best_sub(3,:)=lambdaperfold(findmax);
-            best_sub(2,:)=AUCthreshperfold(findmax);
+            best_sub(2,:)=meritthreshperfold(findmax);
             best_sub(1,:)=ROIcritperfold(findmax);
             
             winsub(:,subfold)=find_optim(best_sub);
@@ -264,60 +312,59 @@ for mainfold=1:design.numFolds
     if length(find(isnan(winsub(1,:))==1))==length(winsub(1,:));
         disp(['Warning: No parameters found for mainfold ' num2str(mainfold) '. Possibly no variables passed the thresholds in this mainfold.'])
     end
-    optim_mainfold(:,mainfold)=find_optim(winsub);
+    optim_mainfold=find_optim(winsub);
     
     for subfold=1:design.numFolds
         %Stability threshold index
-        subfoldidx(1,mainfold,subfold)=optim_mainfold(1,mainfold);
-        paramidx_persubfold(1,mainfold,subfold)=winsub(1,subfold);
+        subfoldidx(1,subfold)=optim_mainfold(1);
+        paramidx_persubfold(1,subfold)=winsub(1,subfold);
         if isnan(winsub(1,subfold))==1
-            paramidx_persubfold(1,mainfold,subfold)=optim_mainfold(1,mainfold);
+            paramidx_persubfold(1,subfold)=optim_mainfold(1);
         end
         %Prediction error threshold index
-        clear diffs
+        clear diffs diffs2
         for zz=1:size(design.merit_thresholds,2)
             diffs(zz)=abs(design.merit_thresholds(mainfold,zz)-winsub(2,subfold));
-            diffs2(zz)=abs(design.merit_thresholds(mainfold,zz)-optim_mainfold(2,mainfold));
+            diffs2(zz)=abs(design.merit_thresholds(mainfold,zz)-optim_mainfold(2));
         end
         ff=find(diffs==min(diffs));
         ff2=find(diffs2==min(diffs2));
         if isnan(winsub(2,subfold))==1
             ff=ff2;
         end
-        subfoldidx(2,mainfold,subfold)=ff2(1);
-        paramidx_persubfold(2,mainfold,subfold)=ff(1);
+        subfoldidx(2,subfold)=ff2(1);
+        paramidx_persubfold(2,subfold)=ff(1);
         
         %alpha index
-        clear diffs
+        clear diffs diffs2
         for zz=1:length(design.alpha)
             diffs(zz)=abs(design.alpha(zz)-winsub(4,subfold));
-            diffs2(zz)=abs(design.alpha(zz)-optim_mainfold(4,mainfold));
+            diffs2(zz)=abs(design.alpha(zz)-optim_mainfold(4));
         end
         ff=find(diffs==min(diffs));
         ff2=find(diffs2==min(diffs2));
         if isnan(winsub(4,subfold))==1
             ff=ff2;
         end
-        subfoldidx(4,mainfold,subfold)=ff2(1);
-        paramidx_persubfold(4,mainfold,subfold)=ff(1);
+        subfoldidx(4,subfold)=ff2(1);
+        paramidx_persubfold(4,subfold)=ff(1);
         
         %lambda index
-        clear diffs
-        tmplambdas=squeeze(lambdamatrix(paramidx_persubfold(1,mainfold,subfold),paramidx_persubfold(2,mainfold,subfold),paramidx_persubfold(4,mainfold,subfold),:,mainfold,subfold));
+        clear diffs diffs2
+        tmplambdas=squeeze(lambdamatrix(paramidx_persubfold(1,subfold),paramidx_persubfold(2,subfold),paramidx_persubfold(4,subfold),:,subfold));
         for zz=1:length(tmplambdas)
             diffs(zz)=abs(tmplambdas(zz)-winsub(3,subfold));
-            diffs2(zz)=abs(tmplambdas(zz)-optim_mainfold(3,mainfold));
+            diffs2(zz)=abs(tmplambdas(zz)-optim_mainfold(3));
         end
         ff=find(diffs==min(diffs));
         ff2=find(diffs2==min(diffs2));
         %         try
-        paramidx_persubfold(3,mainfold,subfold)=ff(1);
-        subfoldidx(3,mainfold,subfold)=ff2(1);
+        paramidx_persubfold(3,subfold)=ff(1);
+        subfoldidx(3,subfold)=ff2(1);
         %         catch ME
         %             paramidx_persubfold(3,mainfold,subfold)=NaN;
         %         end
     end
-end
 end
 
 function winsub=find_optim(bestsub)

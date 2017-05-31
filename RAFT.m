@@ -9,6 +9,8 @@ function [params2pick, Merit, Beta, Vars2pick_main, stats]=RAFT(design)
 % glmnet - http://web.stanford.edu/~hastie/glmnet_matlab/
 % fastAUC - http://www.mathworks.com/matlabcentral/fileexchange/42860-fast-auc-calculator-and-roc-curve-plotter/content/fastAUC.m
 
+% Latest update: 30th May 2017
+
 %%
 cd(design.saveto)
 design.nvars=size(design.data,2);
@@ -20,5 +22,5 @@ if size(design.data,2)>=1000
 else
     RAFT_collect_2nd_level(design);
 end
-[params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats] = RAFT_Model_Selection_140217(design, 1);
+[params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats] = RAFT_Model_Selection(design, 1);
 end

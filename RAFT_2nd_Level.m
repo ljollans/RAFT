@@ -1,9 +1,12 @@
-function RAFT_2nd_Level(design, pass_vars, folds2run)
+function RAFT_2nd_Level_300517(design, pass_vars, folds2run)
 % Second level for Regularized Adaptive Feature Thresholding
 % Here models for each combination of parameters and thresholds are
 % evaluated and the superior models are selected at the third level
 %
 % for comments and questions please contact lee.jollans@gmail.com
+
+% latest update: may 30th 2017
+
 
 cd(design.saveto);
 
@@ -75,20 +78,18 @@ parfor folds=1:(design.numFolds*design.numFolds)
                     options.nlambda=length(design.lambda);
                     options.lambda=design.lambda;
                     options.alpha=design.alpha(alpha_looper);
-                    train=0;
-                    while length(train)<2
+                    X2use=[design.data, design.extradata];
                         %get bootstrap data subset
+
                         try
-                        [Xboot,Yboot]=bootstrapal([design.data([trainsubjectsTune; testsubjectsTune],:), design.extradata([trainsubjectsTune; testsubjectsTune],:)],design.outcome([trainsubjectsTune; testsubjectsTune]),design.Ratio);
+                        [Xboot,Yboot]=bootstrapal([design.data([trainsubjectsTune],:), design.extradata([trainsubjectsTune],:)],design.outcome([trainsubjectsTune]),design.Ratio);
                         catch ME
-                            [Xboot,Yboot]=bootstrapal([design.data([trainsubjectsTune; testsubjectsTune],:), design.extradata([trainsubjectsTune; testsubjectsTune],:)],design.outcome([trainsubjectsTune; testsubjectsTune])',design.Ratio);
+                            [Xboot,Yboot]=bootstrapal([design.data([trainsubjectsTune],:), design.extradata([trainsubjectsTune],:)],design.outcome([trainsubjectsTune])',design.Ratio);
                         end
-                        %make sure we have multiple training subjects
-                        train=unique(Yboot(length(trainsubjectsTune)+1:end));
-                    end
+
                     
                     %fit the elastic net and get beta and intercept values
-                    fit=glmnet(Xboot(1:length(trainsubjectsTune), Vars2pick),Yboot(1:length(trainsubjectsTune)),design.family,options);
+                    fit=glmnet(Xboot(:, Vars2pick),Yboot(:),design.family,options);
                     B0=fit.beta; intercept=fit.a0;
                     
                     switch(design.type)
@@ -96,14 +97,14 @@ parfor folds=1:(design.numFolds*design.numFolds)
                             %if initial lambda value was too high, adjust it
                             while size(B0,2)<options.nlambda
                                 options.lambda=linspace(min(options.lambda),max(fit.lambda)+(max(fit.lambda)/5),design.numLambdas);
-                                fit=glmnet(Xboot(1:length(trainsubjectsTune), Vars2pick),Yboot(1:length(trainsubjectsTune)),design.family,options);
+                                fit=glmnet(Xboot(:, Vars2pick),Yboot(:),design.family,options);
                                 B0=fit.beta; intercept=fit.a0;
                             end
                         case 'logistic',
                             %if initial lambda value was too high, adjust it
                             while size(B0,2)<options.nlambda
                                 options.lambda=linspace(min(options.lambda),max(fit.lambda)+(max(fit.lambda)/5),design.numLambdas);
-                                fit=glmnet(Xboot(1:length(trainsubjectsTune), Vars2pick),Yboot(1:length(trainsubjectsTune)),design.family,options);
+                                fit=glmnet(Xboot(:, Vars2pick),Yboot(:),design.family,options);
                                 B0=fit.beta; intercept=fit.a0;
                             end
                     end
@@ -131,7 +132,7 @@ parfor folds=1:(design.numFolds*design.numFolds)
                         end
                         
                         %make outcome predictions
-                        getprobstune = glmval(squeeze(bb),Xboot(length(trainsubjectsTune)+1:end,Vars2pick),design.link);
+                        getprobstune = glmval(squeeze(bb),X2use(testsubjectsTune,Vars2pick),design.link);
                         
                         if length(find(isnan(getprobstune)==1))>0
                             error('Warning! There was an error. Check your data files for NaNs')
@@ -140,16 +141,17 @@ parfor folds=1:(design.numFolds*design.numFolds)
                         %get evaluation metric
                         switch(design.type)
                             case 'linear',
-                                truth=Yboot(length(trainsubjectsTune)+1:end);
+                                truth=design.outcome(testsubjectsTune);
                                 tmp1 = -sqrt(abs(truth-getprobstune)'*abs(truth-getprobstune)/length(truth));
+%                                 nestedr(lambda_looper)=corr(truth,getprobstune);
                                 merit(lambda_looper)=tmp1;
                             case 'logistic',
                                 switch(design.balanced)
                                     case 'balanced'
-                                        [tmp1] = fastAUC(logical(Yboot(length(trainsubjectsTune)+1:end)),getprobstune,0);
+                                        [tmp1] = fastAUC(logical(design.outcome(testsubjectsTune)),getprobstune,0);
                                         merit(lambda_looper)=tmp1;
                                     case 'unbalanced'
-                                        [prec, tpr] = prec_rec_rob_mod(getprobstune, Yboot(length(trainsubjectsTune)+1:end),'tstPrecRec', 'plotPR',0, 'numThresh',100);
+                                        [prec, tpr] = prec_rec_rob_mod(getprobstune, design.outcome(testsubjectsTune),'tstPrecRec', 'plotPR',0, 'numThresh',100);
                                         fscore=(prec.*tpr)./(prec+tpr);
                                         merit(lambda_looper)=max(fscore);
                                 end
@@ -157,6 +159,7 @@ parfor folds=1:(design.numFolds*design.numFolds)
                     end
                     ttmpvars2use(bootct,:,:)=usedvars;
                     tmpmerit(bootct,:)=merit;
+%                     tmpr(bootct,:)=nestedr;
                 end
                 %collect the lambda values which the elastic net used
                 tmplambda_values(ROIcrit, meritthresh_looper, alpha_looper,:)=mean(tmplambda2use);
@@ -176,6 +179,7 @@ parfor folds=1:(design.numFolds*design.numFolds)
                         tmpLHmerit(ROIcrit, meritthresh_looper, alpha_looper,lambda_looper)=ttmpLHmerit(1);
                     elseif strcmp(design.bagcrit, 'median')==1
                         tmpLHmerit(ROIcrit, meritthresh_looper, alpha_looper,lambda_looper)=median(tmpmerit(:,lambda_looper));%CHANGED TO MEDIAN 25TH APRIL!!
+%                         tmpnestedr(ROIcrit, meritthresh_looper, alpha_looper,lambda_looper)=median(tmpr(:,lambda_looper));
                     else
                         disp('Please enter a valid method for bagging (median or cdf)')
                     end
@@ -250,6 +254,7 @@ parfor folds=1:(design.numFolds*design.numFolds)
                         case 'linear',
                             tmp1 = -sqrt(abs(design.outcome(testsubjectsTune)-getprobstune)'*abs(design.outcome(testsubjectsTune)-getprobstune)/length(design.outcome(testsubjectsTune)));
                             merit(lambda_looper)=tmp1;
+%                             nestedr(lambda_looper)=corr(design.outcome(testsubjectsTune),getprobstune);
                         case 'logistic',
                             switch(design.balanced)
                                 case 'balanced'
@@ -264,6 +269,7 @@ parfor folds=1:(design.numFolds*design.numFolds)
                 end
                 %                 end
                 tmpLHmerit(ROIcrit, meritthresh_looper, alpha_looper,:)=merit;
+%                 tmpnestedr(ROIcrit, meritthresh_looper, alpha_looper,:)=nestedr;
             end
         end
         if design.nboot>1

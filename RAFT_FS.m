@@ -1,7 +1,9 @@
-function [merit_per_var] = RAFT_FS(design, tmpmerit)
+function [merit_per_var] = RAFT_FS_300517(design, tmpmerit)
 % feature selection step of Regularized Adaptive Feature Thresholding
 %
 % for comments and questions please contact lee.jollans@gmail.com
+
+% latest update: may 30th 2017
 
 cd(design.saveto);
 
@@ -33,16 +35,16 @@ if design.nboot>1
             try
                 chklogfolds=0;
                 while chklogfolds==0;
-                    [Xboot,Yboot]=bootstrapal(design.data([trainingsubs; testsubs],:),design.outcome([trainingsubs; testsubs]),design.Ratio);
-                    if length(unique(Yboot(1:length(trainingsubs))))>1 && length(unique(Yboot(length(trainingsubs)+1:end)))>1
+                    [Xboot,Yboot]=bootstrapal(design.data([trainingsubs],:),design.outcome([trainingsubs]),design.Ratio);
+                    if length(unique(Yboot(:)))>1 
                         chklogfolds=1;
                     end
                 end
             catch ME
                 chklogfolds=0;
                 while chklogfolds==0;
-                    [Xboot,Yboot]=bootstrapal(design.data([trainingsubs; testsubs],:),design.outcome([trainingsubs; testsubs])',design.Ratio);
-                    if length(unique(Yboot(1:length(trainingsubs))))>1 && length(unique(Yboot(length(trainingsubs)+1:end)))>1
+                    [Xboot,Yboot]=bootstrapal(design.data([trainingsubs],:),design.outcome([trainingsubs])',design.Ratio);
+                    if length(unique(Yboot(:)))>1 
                         chklogfolds=1;
                     end
                 end
@@ -51,15 +53,15 @@ if design.nboot>1
                 
                 switch(design.type)
                     case 'linear',
-                        [b,dev,stats]=glmfit(Xboot(1:length(trainingsubs),vars),Yboot(1:length(trainingsubs)),design.distribution,'link',design.link);
-                        pred=glmval(b,[Xboot(length(trainingsubs)+1:end,vars)],design.link, 'constant', 'on');
-                        truth=Yboot(length(trainingsubs)+1:end);
+                        [b,dev,stats]=glmfit(Xboot(:,vars),Yboot(:),design.distribution,'link',design.link);
+                        pred=glmval(b,[design.data(testsubs,vars)],design.link, 'constant', 'on');
+                        truth=design.outcome(testsubs);
                         tmp = -sqrt(abs(truth-pred)'*abs(truth-pred)/length(truth));
                         tmp_merit{folds}(vars)=tmp;
                     case 'logistic',
-                        [b,dev,stats]=glmfit(Xboot(1:length(trainingsubs),vars),Yboot(1:length(trainingsubs)),design.distribution,'link',design.link);
-                        pred = glmval(b,Xboot(length(trainingsubs)+1:end,vars)',design.link, 'constant', 'on');
-                        truth=Yboot(length(trainingsubs)+1:end);
+                        [b,dev,stats]=glmfit(Xboot(:,vars),Yboot(:),design.distribution,'link',design.link);
+                        pred = glmval(b,design.data(testsubs,vars)',design.link, 'constant', 'on');
+                        truth=design.outcome(testsubs);
                         switch(design.balanced)
                             case 'balanced'
                                 try

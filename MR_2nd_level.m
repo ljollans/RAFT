@@ -1,4 +1,6 @@
-function [LHmerit, vars2use] = MR_2nd_level(design, pass_vars, mainfolds2run)
+function [LHmerit, vars2use] = MR_2nd_level(design, pass_vars, folds2run)
+
+% latest update: may 30th 2017
 
 cd(design.saveto);
 
@@ -12,9 +14,8 @@ for folds=1:(design.numFolds*design.numFolds)
     tmpvars2use{folds}=zeros(design.numFolds, size(design.merit_thresholds,2),design.nvars);
     tmpLHmerit{folds}=NaN(design.numFolds, size(design.merit_thresholds,2));
 end
-for folds=1:(length(mainfolds2run)*design.numFolds)
-    [mainfold_idx, subfolds]=ind2sub([length(mainfolds2run) design.numFolds], folds);
-    mainfold=mainfolds2run(mainfold_idx);
+parfor folds=1:length(folds2run)
+    [mainfold, subfolds]=ind2sub([design.numFolds design.numFolds], folds2run(folds));
     %identify which threshold constellations are duplicates
     combinations2do=[];
     tofillin=[];
@@ -45,7 +46,7 @@ for folds=1:(length(mainfolds2run)*design.numFolds)
     %loop over all combinations that need to be calculated
     for thresholds=1:length(combinations2do)
         [ROIcrit, meritthresh_looper]=ind2sub([design.numFolds size(design.merit_thresholds,2)], combinations2do(thresholds));
-        
+        ROIcrit=ROIcrit-1;  ROIcrit_looper=design.numFolds-ROIcrit;
         %get the feature set
         tmpVars2pick=find(pass_vars(ROIcrit_looper, meritthresh_looper, mainfold, subfolds,:)==1);
         %add the covariates
@@ -54,16 +55,16 @@ for folds=1:(length(mainfolds2run)*design.numFolds)
         tmpmerit=zeros(design.nboot,1);
         ttmpvars2use=zeros(design.nboot,design.nvars);
         if design.nboot>1
-            parfor bootct=1:design.nboot
+            for bootct=1:design.nboot
                 train=0;
                 while length(train)<2
                     %get bootstrap data subset
-                    [Xboot,Yboot]=bootstrapal([design.data, design.extradata],design.outcome,design.Ratio);
+                    [Xboot,Yboot]=bootstrapal([design.data(trainsubjectsTune,Vars2pick), design.extradata(trainsubjectsTune,:)],design.outcome(trainsubjectsTune),design.Ratio);
                     %make sure we have multiple training subjects
-                    train=unique(Yboot(testsubjectsTune));
+                    train=unique(Yboot);
                 end
                 
-                [b,bint,r,rint,stats] = regress(Yboot(trainsubjectsTune),Xboot(trainsubjectsTune, Vars2pick));
+                [b,bint,r,rint,stats] = regress(Yboot,Xboot);
                 usedvars=zeros(design.numLambdas,design.nvars);
                 tmp=zeros(size(design.data,2),1);
                 for nchk=1:length(tmpVars2pick)
@@ -73,10 +74,10 @@ for folds=1:(length(mainfolds2run)*design.numFolds)
                 end
                 usedvars=tmp;
                 %make outcome predictions
-                getprobstune = glmval(squeeze([0;b]),Xboot(testsubjectsTune,Vars2pick),design.link);
+                getprobstune = glmval(squeeze([0;b]),design.data(testsubjectsTune,Vars2pick),design.link);
                 
                 %get evaluation metric
-                tmp1 = -sqrt(abs(Yboot(testsubjectsTune)-getprobstune)'*abs(Yboot(testsubjectsTune)-getprobstune)/length(Yboot(testsubjectsTune)));
+                tmp1 = -sqrt(abs(design.data(testsubjectsTune)-getprobstune)'*abs(design.data(testsubjectsTune)-getprobstune)/length(design.data(testsubjectsTune)));
                 merit=tmp1;
                 ttmpvars2use(bootct,:)=usedvars;
                 tmpmerit(bootct)=merit;
@@ -93,9 +94,9 @@ for folds=1:(length(mainfolds2run)*design.numFolds)
                 else
                     ttmpLHmerit=NaN;
                 end
-                tmpLHmerit{folds}(ROIcrit, meritthresh_looper)=ttmpLHmerit(1);
+                tmpLHmerit{folds}(ROIcrit_looper,meritthresh_looper)=ttmpLHmerit(1);
             elseif strcmp(design.bagcrit, 'median')==1
-                tmpLHmerit{folds}(ROIcrit, meritthresh_looper)=median(tmpmerit);
+                tmpLHmerit{folds}(ROIcrit_looper,meritthresh_looper)=median(tmpmerit);
             else
                 disp('Please enter a valid method for bagging (median or cdf)')
             end
@@ -107,7 +108,7 @@ for folds=1:(length(mainfolds2run)*design.numFolds)
             tmpfind=zeros(size(design.data,2),1);
             %get variables that were included in 50% of iterations
             tmpfind(find(tmpfindvars>=design.nboot*.5))=1;
-            tmpvars2use{folds}(ROIcrit, meritthresh_looper, :)=logical(tmpfind);
+            tmpvars2use{folds}(ROIcrit_looper,meritthresh_looper,:)=logical(tmpfind);
         else
             X2use=[design.data, design.extradata];
             [b,bint,r,rint,stats] = regress(design.outcome(trainsubjectsTune),X2use(trainsubjectsTune, Vars2pick));
@@ -122,26 +123,27 @@ for folds=1:(length(mainfolds2run)*design.numFolds)
             getprobstune = glmval(squeeze([0;b]),X2use(testsubjectsTune,Vars2pick),design.link);
             tmp1 = -sqrt(abs(design.outcome(testsubjectsTune)-getprobstune)'*abs(design.outcome(testsubjectsTune)-getprobstune)/length(design.outcome(testsubjectsTune)));
             merit=tmp1;
-            tmpvars2use{folds}(ROIcrit, meritthresh_looper, :)=logical(usedvars)';
-            tmpLHmerit{folds}(ROIcrit, meritthresh_looper)=merit;
+            tmpvars2use{folds}(ROIcrit_looper,meritthresh_looper,:)=logical(usedvars)';
+            tmpLHmerit{folds}(ROIcrit_looper,meritthresh_looper)=merit;
         end
     end
 disp(['finished mainfold ' num2str(mainfold) ' subfold ' num2str(subfolds)]);
+ save_folds_in_parfor(tmpLHmerit{folds}, tmpvars2use{folds}, mainfold, subfolds, design);
 end
-vars2use=zeros(design.numFolds, design.numFolds, design.numFolds, size(design.merit_thresholds,2),design.nvars);
-LHmerit=NaN(design.numFolds, design.numFolds, design.numFolds, size(design.merit_thresholds,2));
-for folds=1:(design.numFolds*design.numFolds)
-    [mainfold subfolds]=ind2sub([design.numFolds design.numFolds], folds);
-    LHmerit(mainfold, subfolds,:,:)=tmpLHmerit{folds};
-    vars2use(mainfold,subfolds,:,:,:)=tmpvars2use{folds};
-end
-vars2use=logical(vars2use);
-save('LHmerit', 'LHmerit')
-try
-    save('vars2use', 'vars2use')
-catch
-    save('vars2use', 'vars2use', '-v7.3')
-end
+% vars2use=zeros(design.numFolds, design.numFolds, design.numFolds, size(design.merit_thresholds,2),design.nvars);
+% LHmerit=NaN(design.numFolds, design.numFolds, design.numFolds, size(design.merit_thresholds,2));
+% for folds=1:(design.numFolds*design.numFolds)
+%     [mainfold subfolds]=ind2sub([design.numFolds design.numFolds], folds);
+%     LHmerit(mainfold, subfolds,:,:)=tmpLHmerit{folds};
+%     vars2use(mainfold,subfolds,:,:,:)=tmpvars2use{folds};
+% end
+% vars2use=logical(vars2use);
+% save([pwd filesep 'LHmerit.mat'], 'LHmerit')
+% try
+%     save([pwd filesep 'vars2use.mat'], 'vars2use')
+% catch
+%     save([pwd filesep 'vars2use.mat'], 'vars2use', '-v7.3')
+% end
 end
 
 function [prev_ROIcritlooper, prev_AUCthresh]=check_duplicate(design, AUCs2pick, ROIcrit_looper, AUCthresh_looper, mainfold, subfolds)
@@ -165,4 +167,15 @@ if isempty(find(AUCs2pick(a,b,c,d,:)==1))==0
         end
     end
 end
+end
+
+
+function save_folds_in_parfor(tmpLHmerit, tmpvars2use,mainfold, subfolds, design)
+%rather than holding all data in memory files are saved intermittently.
+% see eliminatereruns.m for code to use these intermittently saved files to
+% restart an analysis if it has been halted/killed/crashed
+cd(design.saveto);
+    LHmerit2save=tmpLHmerit;
+    vars2use2save=tmpvars2use;
+    save([design.saveto filesep 'Second_level_results_' num2str(mainfold) '_' num2str(subfolds)], 'LHmerit2save', 'vars2use2save');
 end
