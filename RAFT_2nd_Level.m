@@ -1,4 +1,4 @@
-function RAFT_2nd_Level_300517(design, pass_vars, folds2run)
+function RAFT_2nd_Level(design, pass_vars, folds2run)
 % Second level for Regularized Adaptive Feature Thresholding
 % Here models for each combination of parameters and thresholds are
 % evaluated and the superior models are selected at the third level
