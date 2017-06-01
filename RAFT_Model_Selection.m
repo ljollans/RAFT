@@ -1,4 +1,4 @@
-function [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats, params2use] = RAFT_Model_Selection_300517(design, use_pass_vars)
+function [params2pick, Merit, Beta, Vars2pick_main,  GetProbs, design, stats, params2use] = RAFT_Model_Selection(design, use_pass_vars)
 % select the best performing model across subfolds for each main CV fold
 % and applies it to the test set
 %
