@@ -174,10 +174,10 @@ for mainfold=1:design.numFolds
 
             
             try
-                fit=glmnet(Xboot(1:length(trainsubjects),[Vars2pick_main{mainfold}, size(Xboot,2)]),Yboot(1:length(trainsubjects)),design.family,options);
+                fit=glmnet(Xboot(1:length(trainsubjects),[Vars2pick_main{mainfold}]),Yboot(1:length(trainsubjects)),design.family,options);
             catch
                 design.outcome=design.outcome';
-                fit=glmnet(Xboot(1:length(trainsubjects),[Vars2pick_main{mainfold}, size(Xboot,2)]),Yboot(1:length(trainsubjects)),design.family,options);
+                fit=glmnet(Xboot(1:length(trainsubjects),[Vars2pick_main{mainfold}]),Yboot(1:length(trainsubjects)),design.family,options);
             end
             BB(:,bootct)=[fit.a0;fit.beta];
         end
