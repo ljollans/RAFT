@@ -1,4 +1,4 @@
-function [merit_per_var] = RAFT_FS_300517(design, tmpmerit)
+function [merit_per_var] = RAFT_FS(design, tmpmerit)
 % feature selection step of Regularized Adaptive Feature Thresholding
 %
 % for comments and questions please contact lee.jollans@gmail.com
