@@ -1,36 +1,33 @@
-function [SORTED_ALL_BETAS AUC F1score]=wdhlooper_aggregate(dir2use, numreps, fileprefix, filepostfix, fileappend4save)
-% function to aggregate results from several runs of the same model
-% example usage: [SORTED_ALL_BETAS AUC F1score]=wdhlooper_aggregate('/home/lee/local/tmp/Results', 5, 'run_', '_null','_5runs_null');
+function [ALL_BETAS SORTED_ALL_BETAS AUC F1score]=wdhlooper_aggregate(dir2use, numreps, fileprefix, filepostfix, fileappend4save)
 
-% dir2use is the directory in which the folders for each analysis to be summarized are stored
-
-% numreps is the numebr of models that are to be summarized
-
-% fileprefix and filepostfix are the elements of folder names before and after the integer signalling the number of the model in that folder
-% for instance if I name my folders 'run1', 'run2', ... etc then fileprefix is 'run' and filepostfix is empty ('').
-% if i name my folders 'repetition_1_nullmodel', 'repetition_2_nullmodel'... etc then fileprefix is 'repetition_' and filepostfix is '_nullmodel'
-
-% fileappend4save is the string appended to .csv files with results that are saved in dir2use. I use this to keep track of what analysis 
-% which .csv file belongs to and how many models are summarized
-
-% SORTED_ALL_BETAS: table with table with variable names, in how many CV folds they were chosen on average, 
-% mean beta value if folds where this variable was not chosen are taken as beta=0, 
-% and mean beta value if folds in which this variable was not chosen were ignored
-% variables are sorted by beta value. This Table is also saved as a .csv file automatically.
-
-% AUC: vector containing all AUC (if logistic regression) or R (if lienar regression) values for all summarized analyses
-
-% F1score: vector containing all F1 scores (if logistic regression) or P values (if lienar regression) values for all summarized analyses
-
+%clear
+%dir='/media/hanni/707E536D7E532ADC/Google Drive/MS ML/SPM/parcellated_modeling/P_out_P3bVismo0/Results_CMSMLlinCOGNz_P3bVis';
+%numreps=8;
 thresholdsused=[];
 thresholdspicked=[];
 for wdh=1:numreps
     clear stats r p design
-    load([dir2use filesep fileprefix num2str(wdh) filepostfix filesep 'Results.mat']);
     load([dir2use filesep fileprefix num2str(wdh) filepostfix filesep 'design.mat']);
+    load([dir2use filesep fileprefix num2str(wdh) filepostfix filesep 'Results.mat']);
+    if exist([dir2use filesep fileprefix num2str(wdh) filepostfix filesep 'prediction.mat'])
+        design.prediction=pred;
+    end
+
     switch design.type
         case 'logistic'
             if exist('stats', 'var')==1
+                x=stats.tpr-stats.fpr;
+                pred=zeros(size(design.prediction)); 
+                try
+                    t=find(x==max(x));
+                    pred(find(design.prediction>=stats.thresh(t(1))))=1;
+                catch
+                    disp('oops...')
+                end
+                for n=1:length(pred), correct(n)=isequal(pred(n), design.outcome(n)); end
+                accuracy(wdh)=(sum(correct)*100)/length(correct);
+                sensitivity(wdh)=(sum(correct(find(design.outcome==1)))*100)/length(correct(find(design.outcome==1)));
+                specificity(wdh)=(sum(correct(find(design.outcome==0)))*100)/length(correct(find(design.outcome==0)));
                 AUC(wdh)=stats.overall_AUC;
                 F1score(wdh)=stats.F1score;
             else
@@ -48,25 +45,17 @@ for wdh=1:numreps
     if exist('Vars2pick_main', 'var')==0
         Vars2pick_main=[];
     end
-    [choicefreq{wdh} sorted_Betas{wdh} Betas{wdh} Unsorted_allbetas{wdh}]=aggregate_betas(Vars2pick_main, Beta, size(design.data,2), size(design.extradata,2), design.numFolds, design.vars, design.covarlabels);
+    if isempty(design.covarlabels)==1
+        for n=1:size(design.extradata,2)
+        design.covarlabels{n}=num2str(n);
+        end
+    end
+    [choicefreq{wdh} sorted_Betas{wdh} Betas{wdh} Unsorted_allbetas{wdh} brainbetas{wdh}]=aggregate_betas(design, Vars2pick_main, Beta, size(design.data,2), size(design.extradata,2), design.numFolds, design.vars, design.covarlabels);
     choicefreq_all(:,wdh)=Unsorted_allbetas{wdh}(:,1);
     Meanbeta_incl0(:,wdh)=Unsorted_allbetas{wdh}(:,2);
     Meanbeta_excl0(:,wdh)=Unsorted_allbetas{wdh}(:,3);
-    if exist('params2use', 'var')==1
-        thresholdsused=[thresholdsused, params2use];
-        thresholdspicked=[thresholdspicked, params2pick];
-    else
-        thresholdsused=[thresholdsused; [alpha2use', lambda2use']];
-    end
 end
-if exist('params2use', 'var')==1
-    thresholds=array2table([thresholdsused; thresholdspicked]');
-    thresholds.Properties.VariableNames={'occurrence_threshold_used', 'merit_thresholds_used', 'lambda_used', 'alpha_used', 'occurrence_threshold_picked', 'merit_thresholds_picked', 'lambda_picked', 'alpha_picked'};
-else
-    thresholds=array2table([thresholdsused]);
-    thresholds.Properties.VariableNames={'alpha_used', 'lambda_used'};
-end
-writetable(thresholds, [dir2use filesep 'Thresholds' fileappend4save '.xls']);
+
 mcf=mean(choicefreq_all');
 mbi=mean(Meanbeta_incl0');
 mbe=nanmean(Meanbeta_excl0');
@@ -86,11 +75,12 @@ SORTED_ALL_BETAS.Properties.VariableNames={'Variable_index' 'MEANChoice_frequenc
 writetable(SORTED_ALL_BETAS, [dir2use filesep 'Sorted_Beta_Values' fileappend4save '.xls']) 
 writetable(ALL_BETAS, [dir2use filesep 'Unsorted_Beta_Values' fileappend4save '.xls']) 
 %
-X=array2table([AUC', F1score']);
 switch design.type
     case 'logistic'
-        X.Properties.VariableNames={'AUC', 'F1score'};
+        X=array2table([AUC', F1score', accuracy', sensitivity', specificity']);
+        X.Properties.VariableNames={'AUC', 'F1score', 'accuracy', 'sensitivity', 'specificity'};
     case 'linear'
+        X=array2table([AUC', F1score']);
         X.Properties.VariableNames={'R', 'P'};
 end
 writetable(X, [dir2use filesep 'Modelfit' fileappend4save '.xls']) 

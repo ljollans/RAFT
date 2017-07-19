@@ -1,4 +1,131 @@
-function [Beta, pred, stats]=do_EN(X, truth, nboot, bagcrit, saveto, type)
+function [Beta, pred, stats]=do_EN(X, truth, nboot, bagcrit, saveto, type, nparam, reg_on)
+% reg_on added in July 2017 to see if tuning on specificity rather than
+% f1score might make sense with very unbalanced models
+% latest update: july 7th 2017
+if ~exist(saveto)
+    mkdir(saveto)
+    save([saveto filesep 'data'], 'X', 'truth', 'nboot')
+end
+Y=truth;
+switch type
+    case 'linear'
+        family='gaussian';
+        link='identity';
+        reg_on='x';
+    case 'logistic'
+        family='binomial';
+        link='logit';
+        if exist('reg_on', 'var')==0
+            %if the groups are balanced
+            if length(find(truth==0))/3>length(find(truth==1)) %pos class small --> tune on sensitivity
+                reg_on='sensitivity';
+            elseif length(find(truth==1))/3>length(find(truth==0)) %neg class small --> tune on specficity
+                reg_on='specificity';
+            else
+                reg_on='F1score';
+            end
+        end
+end
+[mf, sf]=AssignFolds(size(X,1),10,10);
+
+if exist('nparam', 'var')==0
+    nparam=5;
+end
+lambda= fliplr(logspace(-1.5,0,nparam));
+alpha = linspace(0.01,1.0,nparam);
+
+if ~exist([saveto filesep 'LHmerit.mat']) | ~exist([saveto filesep 'lambda_values.mat'])
+[LHmerit lambda_values]=do_EN_1(X, truth, nboot, bagcrit, saveto, type, nparam,reg_on);
+else
+    load([saveto filesep 'LHmerit.mat'])
+    load([saveto filesep 'lambda_values.mat'])
+end
+
+for mainfold=1:10
+    for subfolds=1:10
+        folds=sub2ind([10 10], mainfold, subfolds);
+        for alpha_looper=1:length(alpha)
+            lambda_aggr{mainfold}(subfolds,alpha_looper,:)=squeeze(lambda_values{folds}(alpha_looper, :));
+        end
+        [r c]=find(squeeze(LHmerit{folds}( :, :))==max(max(squeeze(LHmerit{folds}( :, :)))));
+        try
+            max_alpha(mainfold, subfolds)=mode(r);
+            max_lambda(mainfold, subfolds)=round(median(c(find(r==mode(r)))));
+        catch ME
+            max_alpha(mainfold, subfolds)=1;
+            max_lambda(mainfold, subfolds)=1;
+        end
+    end
+    alphaidx2use(mainfold)=mode(max_alpha(mainfold,:));
+    lambdaidx2use(mainfold)=mode(max_lambda(mainfold,:));
+    alpha2use(mainfold)=alpha(alphaidx2use(mainfold));
+    if lambdaidx2use(mainfold)<nparam
+    lambda2use(mainfold)=mean(squeeze(lambda_aggr{mainfold}(:,alphaidx2use(mainfold),lambdaidx2use(mainfold)+1)));
+    else
+        lambda2use(mainfold)=mean(squeeze(lambda_aggr{mainfold}(:,alphaidx2use(mainfold),lambdaidx2use(mainfold))));
+    end
+    
+    trainsubjects = find(mf ~= mainfold);
+    testsubjects=find(mf == mainfold);
+    
+    options=glmnetSet;
+    options.standardize=true;
+    options.alpha=alpha2use(mainfold);
+    options.lambda=lambda2use(mainfold);
+    
+    fit=glmnet(X(trainsubjects,:),truth(trainsubjects),family,options);
+    B0=fit.beta;
+    Beta{mainfold}=[fit.a0; B0];
+    GetProbs{mainfold} = glmval(Beta{mainfold},X(testsubjects,:),link);
+    pred(testsubjects)=GetProbs{mainfold};
+    
+    %% to test overfit do pred for trainsubs also
+    tstGetProbs{mainfold} = glmval(Beta{mainfold},X(trainsubjects,:),link);
+    tstpred(trainsubjects)=tstGetProbs{mainfold};
+    switch type
+        case 'linear',
+            [Merit.train_r(mainfold),Merit.train_p(mainfold)]=corr(tstpred(trainsubjects)', truth(trainsubjects));
+            Merit.train_mse(mainfold)=(abs(truth(trainsubjects)-tstpred(trainsubjects)')'*abs(truth(trainsubjects)-tstpred(trainsubjects)')/length(truth(trainsubjects)));
+        case 'logistic'
+%             [Merit.train_overall_AUC{mainfold},Merit.train_fpr{mainfold},Merit.train_tpr{mainfold}] = fastAUC(logical(truth),tstpred',0);
+%             [Merit.train_prec{mainfold}, Merit.train_tpr{mainfold}, Merit.train_fpr{mainfold}, Merit.train_thresh{mainfold}] = prec_rec_rob_mod(tstpred', logical(truth),'tstPrecRec', 'plotPR',0);
+%             fscoretrain_=(Merit.train_prec{mainfold}.*Merit.train_tpr{mainfold})./(Merit.train_prec{mainfold}+Merit.train_tpr{mainfold});
+%             Merit.train_F1score{mainfold}=max(fscoretrain_);
+try
+            [Merit.train_accuracy{mainfold} Merit.train_sensitivity{mainfold} Merit.train_specificity{mainfold} Merit.train_AUC{mainfold} Merit.train_F1{mainfold}]=class_mets(logical(truth), tstpred);
+catch
+pause
+end
+    end
+end
+
+switch type
+    case 'linear',
+        [stats.r, stats.p]=corr(pred', truth);
+        stats.mse=(abs(truth-pred')'*abs(truth-pred')/length(truth));
+    case 'logistic'
+%         [stats.overall_AUC,stats.fpr,stats.tpr] = fastAUC(logical(truth),pred',0);
+%         [stats.prec, stats.tpr, stats.fpr, stats.thresh] = prec_rec_rob_mod(pred', logical(truth),'tstPrecRec', 'plotPR',0);
+%         fscore=(stats.prec.*stats.tpr)./(stats.prec+stats.tpr);
+%         stats.F1score=max(fscore);
+        [stats.accuracy stats.sensitivity stats.specificity stats.overall_AUC stats.F1score]=class_mets(truth, pred);
+end
+
+
+if ~exist(saveto, 'dir')
+    mkdir(saveto);
+end
+cd(saveto)
+save('data', 'X', 'truth');
+save('betas', 'Beta');
+save('prediction', 'pred');
+save('params2use', 'alpha2use', 'lambda2use');
+save('results', 'stats');
+save('Merit',  'Merit');
+save('Results',  'pred', 'Beta', 'alpha2use', 'lambda2use', 'stats', 'mf', 'sf');
+end
+
+function [LHmerit lambda_values]=do_EN_1(X, truth, nboot, bagcrit, saveto, type, nparam, reg_on)
 
 % latest update: may 30th 2017
 
@@ -13,10 +140,11 @@ switch type
 end
 [mf, sf]=AssignFolds(size(X,1),10,10);
 
-lambda= fliplr(logspace(-3,0,5));
-alpha = linspace(0.01,1.0,5);
+lambda= fliplr(logspace(-1.5,0,nparam));
+alpha = linspace(0.01,1.0,nparam);
 
-for folds=1:100
+%%PARFOR
+parfor folds=1:100
     tmplambda2use=[];
     [mainfold subfolds]=ind2sub([10 10], folds);
     trainsubjectsTune = find(mf ~= mainfold & sf(:,mainfold) ~=subfolds);
@@ -32,14 +160,13 @@ for folds=1:100
         tmpvars2use=[];
         if nboot<2
             fit=glmnet(X(trainsubjectsTune, :),truth(trainsubjectsTune),family,options);
-            B0=fit.beta; intercept=fit.a0;
-            lambda_values{folds}(alpha_looper, :)=fit.lambda;
+            B0=fit.beta; intercept=fit.a0; 
             while size(B0,2)<options.nlambda
                 options.lambda=linspace(lambda(1)+lambda(1)/10, 1, length(lambda));
                 fit=glmnet(X(trainsubjectsTune, :),truth(trainsubjectsTune),family,options);
                 B0=fit.beta; intercept=fit.a0;
-                lambda_values{folds}(alpha_looper, :)=fit.lambda;
             end
+            lambda_values{folds}(alpha_looper, :)=fit.lambda;
             if size(intercept,2)==size(B0,2)
                 b=[intercept; B0];
             elseif size(intercept,1)==size(B0,2)
@@ -61,9 +188,18 @@ for folds=1:100
                     case 'linear',
                         LHmerit{folds} (alpha_looper,lambda_looper) = -sqrt(abs(truth(testsubjectsTune)-getprobstune)'*abs(truth(testsubjectsTune)-getprobstune)/length(truth(testsubjectsTune)));
                     case 'logistic',
-                        [prec, tpr] = prec_rec_rob_mod(getprobstune, truth(testsubjectsTune),'tstPrecRec', 'plotPR',0, 'numThresh',100);
-                        fscore=(prec.*tpr)./(prec+tpr);
-                        LHmerit{folds} (alpha_looper,lambda_looper) =max(fscore);
+                        [accuracy sensitivity specificity AUC F1score]=class_mets(truth(testsubjectsTune), getprobstune');
+                        if strcmp(reg_on, 'sensitivity')==1
+                            LHmerit{folds} (alpha_looper,lambda_looper) =sensitivity;
+                        elseif strcmp(reg_on, 'specificity')==1
+                            LHmerit{folds} (alpha_looper,lambda_looper) =specificity;
+                        elseif strcmp(reg_on, 'accuracy')==1
+                            LHmerit{folds} (alpha_looper,lambda_looper) =accuracy;
+                        elseif strcmp(reg_on, 'AUC')==1
+                            LHmerit{folds} (alpha_looper,lambda_looper) =AUC;
+                        elseif strcmp(reg_on, 'F1score')==1
+                            LHmerit{folds} (alpha_looper,lambda_looper) =F1score;
+                        end
                 end
             end
         elseif nboot>1
@@ -103,9 +239,18 @@ for folds=1:100
                         case 'linear',
                             tmp1 = -sqrt(abs(Y(testsubjectsTune)-getprobstune)'*abs(Y(testsubjectsTune)-getprobstune)/length(Y(testsubjectsTune)));
                         case 'logistic',
-                            [prec, tpr] = prec_rec_rob_mod(getprobstune, Y(testsubjectsTune),'tstPrecRec', 'plotPR',0, 'numThresh',100);
-                            fscore=(prec.*tpr)./(prec+tpr);
-                            tmp1=max(fscore);
+                            [accuracy sensitivity specificity AUC F1score]=class_mets(Y(testsubjectsTune), getprobstune');
+                        if strcmp(reg_on, 'sensitivity')==1
+                            tmp1=sensitivity;
+                        elseif strcmp(reg_on, 'specificity')==1
+                            tmp1=specificity;
+                        elseif strcmp(reg_on, 'accuracy')==1
+                           tmp1=accuracy;
+                        elseif strcmp(reg_on, 'AUC')==1
+                            tmp1=AUC;
+                        elseif strcmp(reg_on, 'F1score')==1
+                            tmp1=F1score;
+                        end
                     end
                     tmpmerit(bootct,lambda_looper)=tmp1;
                 end
@@ -133,78 +278,6 @@ for folds=1:100
         end
     end
 end
-
-
-for mainfold=1:10
-    for subfolds=1:10
-        folds=sub2ind([10 10], mainfold, subfolds);
-        for alpha_looper=1:length(alpha)
-            lambda_aggr{mainfold}(subfolds,alpha_looper,:)=squeeze(lambda_values{folds}(alpha_looper, :));
-        end
-        [r c]=find(squeeze(LHmerit{folds}( :, :))==max(max(squeeze(LHmerit{folds}( :, :)))));
-        try
-            max_alpha(mainfold, subfolds)=r(1);
-            max_lambda(mainfold, subfolds)=c(1);
-        catch ME
-            max_alpha(mainfold, subfolds)=1;
-            max_lambda(mainfold, subfolds)=1;
-        end
-    end
-    alphaidx2use(mainfold)=mode(max_alpha(mainfold,:));
-    lambdaidx2use(mainfold)=mode(max_lambda(mainfold,:));
-    alpha2use(mainfold)=alpha(alphaidx2use(mainfold));
-    lambda2use(mainfold)=mean(squeeze(lambda_aggr{mainfold}(:,alphaidx2use(mainfold),lambdaidx2use(mainfold))));
-    
-    trainsubjects = find(mf ~= mainfold);
-    testsubjects=find(mf == mainfold);
-    
-    options=glmnetSet;
-    options.standardize=true;
-    options.alpha=alpha2use(mainfold);
-    options.lambda=lambda2use(mainfold);
-    
-    fit=glmnet(X(trainsubjects,:),truth(trainsubjects),family,options);
-    B0=fit.beta;
-    Beta{mainfold}=[fit.a0; B0];
-    GetProbs{mainfold} = glmval(Beta{mainfold},X(testsubjects,:),link);
-    pred(testsubjects)=GetProbs{mainfold};
-    
-    %% to test overfit do pred for trainsubs also
-    tstGetProbs{mainfold} = glmval(Beta{mainfold},X(trainsubjects,:),link);
-    tstpred(trainsubjects)=tstGetProbs{mainfold};
-    switch type
-        case 'linear',
-            [Merit.train_r(mainfold),Merit.train_p(mainfold)]=corr(tstpred(trainsubjects)', truth(trainsubjects));
-            Merit.train_mse(mainfold)=(abs(truth(trainsubjects)-tstpred(trainsubjects)')'*abs(truth(trainsubjects)-tstpred(trainsubjects)')/length(truth(trainsubjects)));
-        case 'logistic'
-            [Merit.overall_AUC{mainfold},Merit.fpr{mainfold},Merit.tpr{mainfold}] = fastAUC(logical(truth),pred',0);
-            [Merit.prec{mainfold}, Merit.tpr{mainfold}, Merit.fpr{mainfold}, Merit.thresh{mainfold}] = prec_rec_rob_mod(pred', logical(truth),'tstPrecRec', 'plotPR',0);
-            fscore=(Merit.prec{mainfold}.*Merit.tpr{mainfold})./(Merit.prec{mainfold}+Merit.tpr{mainfold});
-            Merit.F1score{mainfold}=max(fscore);
-    end
-end
-
-switch type
-    case 'linear',
-        [stats.r, stats.p]=corr(pred', truth);
-        stats.mse=(abs(truth-pred')'*abs(truth-pred')/length(truth));
-    case 'logistic'
-        [stats.overall_AUC,stats.fpr,stats.tpr] = fastAUC(logical(truth),pred',0);
-        [stats.prec, stats.tpr, stats.fpr, stats.thresh] = prec_rec_rob_mod(pred', logical(truth),'tstPrecRec', 'plotPR',0);
-        fscore=(stats.prec.*stats.tpr)./(stats.prec+stats.tpr);
-        stats.F1score=max(fscore);
-end
-
-
-if ~exist(saveto, 'dir')
-    mkdir(saveto);
-end
-cd(saveto)
-save('data', 'X', 'truth');
-save('betas', 'Beta');
-save('prediction', 'pred');
-save('params2use', 'alpha2use', 'lambda2use');
-save('results', 'stats');
-% save('Merit', , 'Merit');
-save('Results',  'pred', 'Beta', 'alpha2use', 'lambda2use', 'stats', 'mf', 'sf');
+save([saveto filesep 'LHmerit.mat'], 'LHmerit')
+save([saveto filesep 'lambda_values.mat'], 'lambda_values')
 end

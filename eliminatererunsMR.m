@@ -11,14 +11,14 @@ load('design.mat')
 design.saveto=savestr;
 if exist([savestr filesep 'Results.mat'])==0
     if exist([savestr filesep 'LHmerit.mat'], 'file') | exist([savestr filesep 'LHmerit10.mat'], 'file')
-         [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = MR_3rd_level(design, 1, 1);
+         [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = MR_3rd_level(design,1);
     elseif exist([savestr filesep 'merit_per_var.mat'])==0
         if exist([design.saveto filesep 'tmpmerit.mat'], 'file')
             load([design.saveto filesep 'tmpmerit.mat'])
             [merit_per_var] = RAFT_FS(design, tmpmerit);
             [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
             MR_2nd_level(design, pass_vars, [1:(design.numFolds*design.numFolds)]);
-            if size(design.data,2)>=1000
+            if size(design.data,2)>=500
                 MR_collect_2nd_level_memorysave(design);
             else
                 MR_collect_2nd_level(design);
@@ -28,7 +28,7 @@ if exist([savestr filesep 'Results.mat'])==0
             [merit_per_var] = RAFT_FS(design, []);
             [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
             MR_2nd_level(design, pass_vars, [1:(design.numFolds*design.numFolds)]);
-            if size(design.data,2)>=1000
+            if size(design.data,2)>=500
                 MR_collect_2nd_level_memorysave(design);
             else
                 MR_collect_2nd_level(design);
@@ -39,7 +39,7 @@ if exist([savestr filesep 'Results.mat'])==0
         load('merit_per_var.mat')
         [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
                     MR_2nd_level(design, pass_vars, [1:(design.numFolds*design.numFolds)]);
-            if size(design.data,2)>=1000
+            if size(design.data,2)>=500
                 MR_collect_2nd_level_memorysave(design);
             else
                 MR_collect_2nd_level(design);
@@ -79,12 +79,12 @@ if exist([savestr filesep 'Results.mat'])==0
         end
         load('pass_vars.mat')
             MR_2nd_level(design, pass_vars, folds2do);
-            if size(design.data,2)>=1000
+            if size(design.data,2)>=500
                 MR_collect_2nd_level_memorysave(design);
             else
                 MR_collect_2nd_level(design);
             end
-            [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = MR_3rd_level(design, 1, 1);
+            [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = MR_3rd_level(design,1);
     end
 else
     load('Results.mat')

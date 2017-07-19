@@ -174,20 +174,21 @@ for mainfold=1:design.numFolds
 
             
             try
-                fit=glmnet(Xboot(1:length(trainsubjects),[Vars2pick_main{mainfold}]),Yboot(1:length(trainsubjects)),design.family,options);
+                fit=glmnet(Xboot(1:length(trainsubjects),[Vars2pick_main{mainfold}, length(design.vars)+1:length(design.vars)+length(design.covarlabels)]),Yboot(1:length(trainsubjects)),design.family,options);
             catch
                 design.outcome=design.outcome';
-                fit=glmnet(Xboot(1:length(trainsubjects),[Vars2pick_main{mainfold}]),Yboot(1:length(trainsubjects)),design.family,options);
+                fit=glmnet(Xboot(1:length(trainsubjects),[Vars2pick_main{mainfold}, length(design.vars)+1:length(design.vars)+length(design.covarlabels)]),Yboot(1:length(trainsubjects)),design.family,options);
             end
             BB(:,bootct)=[fit.a0;fit.beta];
         end
         b=median(BB');
     else
+        tmp=[design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)];
         try
-            fit=glmnet([design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.outcome(trainsubjects),design.family,options);
+            fit=glmnet(tmp,design.outcome(trainsubjects),design.family,options);
         catch
             design.outcome=design.outcome';
-            fit=glmnet([design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.outcome(trainsubjects),design.family,options);
+            fit=glmnet(tmp,design.outcome(trainsubjects),design.family,options);
         end
         B0=fit.beta;
         try b=[fit.a0'; fit.beta];
@@ -199,16 +200,21 @@ for mainfold=1:design.numFolds
     switch(design.type)
         case 'linear',
             Beta{mainfold}=b';
+            tmp=[design.data(testsubjects,Vars2pick_main{mainfold}), design.extradata(testsubjects,:)];
             try
-            GetProbs{mainfold} = glmval(Beta{mainfold},[design.data(testsubjects,Vars2pick_main{mainfold}), design.extradata(testsubjects,:)],design.link);
+            GetProbs{mainfold} = glmval(Beta{mainfold},tmp,design.link);
             catch
-                GetProbs{mainfold} = glmval(Beta{mainfold}',[design.data(testsubjects,Vars2pick_main{mainfold}), design.extradata(testsubjects,:)],design.link);
+                try
+                GetProbs{mainfold} = glmval(Beta{mainfold}',tmp,design.link);
+                catch
+                    GetProbs{mainfold} = glmval(Beta{mainfold}',tmp',design.link);
+                end
             end
                 design.prediction(testsubjects)=GetProbs{mainfold};
             Merit.mse(mainfold)= -sqrt(abs(design.outcome(testsubjects)-GetProbs{mainfold})'*abs(design.outcome(testsubjects)-GetProbs{mainfold})/length(design.outcome(testsubjects)));
             [Merit.r(mainfold), Merit.p(mainfold)] = corr(GetProbs{mainfold}, design.outcome(testsubjects));
             %% to check overfit
-            train_GetProbs{mainfold} = glmval(Beta{mainfold}',[design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.link);
+            train_GetProbs{mainfold} = glmval(Beta{mainfold},[design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.link);
             train_prediction(trainsubjects)=train_GetProbs{mainfold};
             Merit.train_mse(mainfold)= -sqrt(abs(design.outcome(trainsubjects)'-train_prediction(trainsubjects))*abs(design.outcome(trainsubjects)'-train_prediction(trainsubjects))'/length(design.outcome(trainsubjects)));
             [Merit.train_r(mainfold), Merit.train_p(mainfold)] = corr(train_prediction(trainsubjects)', design.outcome(trainsubjects));

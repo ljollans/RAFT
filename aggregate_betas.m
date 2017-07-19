@@ -1,19 +1,4 @@
-function [choicefreq sorted_betas betas ALLBetas]=aggregate_betas(Vars2pick_main, Beta, nbrainFeatures, nCoVars, numFolds, varnames, covarnames);
-% This function gives you some summary statistics for your model.
-% load 'Results.mat' into the workspace and run, example:
-
-%[choicefreq sorted_betas betas ALLBetas]=aggregate_betas(Vars2pick_main, Beta, length(design.vars), ...
-% length(design.covarlabels), design.numFolds, design.vars, design.covarlabels);
-
-%choicefreq: vector showing in how many CV folds each variable was chosen
-
-% betas: table with variables, in how many CV folds they were chosen, 
-% mean beta value if folds where this variable was not chosen are taken as beta=0, 
-% and mean beta value if folds in which this variable was not chosen were ignored
-
-% sorted_betas: the same as betas but sorted by mean beta value
-
-% ALLBetas: matrix with the last three columns of sorted_betas
+function [choicefreq sorted_betas betas ALLBetas brainbetas]=aggregate_betas(design, Vars2pick_main, Beta, nbrainFeatures, nCoVars, numFolds, varnames, covarnames);
 
 brainbetas=zeros(nbrainFeatures,numFolds);
 pickedbrain=zeros(nbrainFeatures,numFolds);
@@ -28,18 +13,22 @@ end
 for mainfold=1:numFolds
     for vars=1:length(Vars2pick_main{mainfold})
         brainbetas(Vars2pick_main{mainfold}(vars),mainfold)=Beta{mainfold}(1+vars);
-        pickedbrain(Vars2pick_main{mainfold}(vars),mainfold)=1;
-    end
-    %if length(Beta{mainfold})==length(varnames)+length(covarnames)+1
-    for covars=1:nCoVars
-        covarbetas(covars,mainfold)=Beta{mainfold}(1+length(Vars2pick_main{mainfold})+covars);
-        if Beta{mainfold}(1+length(Vars2pick_main{mainfold})+covars)~=0
-            pickedcovars(covars,mainfold)=1;
+        if Beta{mainfold}(1+vars)~=0
+            pickedbrain(Vars2pick_main{mainfold}(vars),mainfold)=1;
+        else
+            pickedbrain(Vars2pick_main{mainfold}(vars),mainfold)=0;
         end
     end
-    %else
-    %    disp(['Ignored covariates in mainfold ' num2str(mainfold)])
-    %end
+    if length(Beta{mainfold})>length(varnames)+1
+        for covars=1:nCoVars
+            covarbetas(covars,mainfold)=Beta{mainfold}(1+length(Vars2pick_main{mainfold})+covars);
+            if Beta{mainfold}(1+length(Vars2pick_main{mainfold})+covars)~=0
+                pickedcovars(covars,mainfold)=1;
+            end
+        end
+    else
+        disp(['Ignored covariates in mainfold ' num2str(mainfold)])
+    end
 end
 choicefreq=sum(pickedbrain,2);
 zeromean_brain=mean(brainbetas,2);
@@ -49,19 +38,40 @@ zeromean_cov=mean(covarbetas,2);
 covarchoicefreq=sum(pickedcovars,2);
 covarbetas(covarbetas==0)=NaN;
 NaNmean_cov=nanmean(covarbetas,2);
-ALLBetas=[[choicefreq, zeromean_brain, NaNmean_brain];[covarchoicefreq, zeromean_cov, NaNmean_cov]];
+if length(choicefreq)>length(varnames)
+    delthem=1;
+    l=length(varnames);
+    while delthem==1 && l<length(choicefreq)
+        l=l+1;
+        if choicefreq(l)~=0
+            delthem=0;
+        end
+    end
+    if delthem==1
+        ALLBetas=[[choicefreq(1:length(varnames)), zeromean_brain(1:length(varnames)), NaNmean_brain(1:length(varnames))];[covarchoicefreq, zeromean_cov, NaNmean_cov]];
+    else
+        disp(['something is up with the lengths of varnames and number of actual variables'])
+    end
+else
+    ALLBetas=[[choicefreq, zeromean_brain, NaNmean_brain];[covarchoicefreq, zeromean_cov, NaNmean_cov]];
+end
 [B idx]=sort(ALLBetas(:,1));
 idx=flipud(idx);
 ALL_Betas=ALLBetas(idx,:);
-for n=1:length(varnames)
+BB=[brainbetas;ones(nCoVars,10)];
+for n=1:size(design.data,2)
+    try
     strs{n}=varnames{n};
+    catch
+        strs{n}=num2str(varnames(n));
+    end
 end
 if length(covarnames)>1
     for n=1:length(covarnames)
-        strs{length(varnames)+n}=covarnames{n};
+        strs{size(design.data,2)+n}=covarnames{n};
     end
-else
-    strs{length(varnames)+1}=covarnames;
+elseif isempty(covarnames)==0
+    strs{size(design.data,2)+1}=covarnames;
 end
 sorted_betas(:,1)=strs(idx);
 betas(:,1)=strs;
@@ -69,6 +79,7 @@ sorted_betas=array2table(sorted_betas);
 betas=array2table(betas);
 sorted_betas(:,2:4)=array2table(ALL_Betas);
 betas(:,2:4)=array2table(ALLBetas);
-sorted_betas.Properties.VariableNames={'Variable_index' 'Choice_frequency' 'Mean_beta_incl_0' 'Mean_beta_excl_0'};
+sorted_betas(:,5:14)=array2table(BB(idx,:));
+sorted_betas.Properties.VariableNames={'Variable_index' 'Choice_frequency' 'Mean_beta_incl_0' 'Mean_beta_excl_0' 'cv1' 'cv2' 'cv3' 'cv4' 'cv5', 'cv6', 'cv7' 'cv8' 'cv9' 'cv10'};
 betas.Properties.VariableNames={'Variable_index' 'Choice_frequency' 'Mean_beta_incl_0' 'Mean_beta_excl_0'};
 end

@@ -13,8 +13,16 @@ vars2use=zeros(design.numFolds, design.numFolds, design.numFolds, size(design.me
 for folds=1:(design.numFolds*design.numFolds)
         [mainfold subfolds]=ind2sub([design.numFolds design.numFolds], folds);  
         load([design.saveto filesep 'Second_level_results_' num2str(mainfold) '_' num2str(subfolds)]);
-        LHmerit(mainfold, subfolds,:,:)=LHmerit2save;
-        vars2use(mainfold,subfolds,:,:,:)=vars2use2save;
+        if size(LHmerit2save,1)==100
+            LHmerit(mainfold, subfolds,:,:)=LHmerit2save{folds};
+        else
+            LHmerit(mainfold, subfolds,:,:)=LHmerit2save;
+        end
+        if size(vars2use2save,1)==100
+            vars2use(mainfold,subfolds,:,:,:)=vars2use2save{folds};
+        else
+            vars2use(mainfold,subfolds,:,:,:)=vars2use2save;
+        end        
 end
 
 vars2use=logical(vars2use);
