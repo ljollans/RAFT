@@ -1,7 +1,20 @@
-function [Beta, pred, stats]=do_EN(X, truth, nboot, bagcrit, saveto, type, nparam, reg_on)
+function [Beta, pred, stats]=do_EN(X, truth, nboot, saveto, type, numFolds, nparam, reg_on)
+
+% X: your data matrix
+% truth: your outcome vector
+% nboot: number of bagging iterations to do, if nboot==1 it won't do bagging
+% saveto: folder to save resutls to
+% type: 'linear' or 'logistic'
+% numFolds: number of cross-validation folds
+% nparam: number of alpha and lambda values to test, e.g. 5
+% reg_on: just leave this argument out unless you want to specifically set for logistic regression that models are optimized on a specific metric
+
+
+
 % reg_on added in July 2017 to see if tuning on specificity rather than
 % f1score might make sense with very unbalanced models
 % latest update: july 7th 2017
+bagcrit='median';
 if ~exist(saveto)
     mkdir(saveto)
     save([saveto filesep 'data'], 'X', 'truth', 'nboot')
@@ -26,7 +39,7 @@ switch type
             end
         end
 end
-[mf, sf]=AssignFolds(size(X,1),10,10);
+
 
 if exist('nparam', 'var')==0
     nparam=5;
@@ -35,7 +48,7 @@ lambda= fliplr(logspace(-1.5,0,nparam));
 alpha = linspace(0.01,1.0,nparam);
 
 if ~exist([saveto filesep 'LHmerit.mat']) | ~exist([saveto filesep 'lambda_values.mat'])
-[LHmerit lambda_values]=do_EN_1(X, truth, nboot, bagcrit, saveto, type, nparam,reg_on);
+[LHmerit lambda_values mf sf]=do_EN_1(X, truth, nboot, bagcrit, saveto, type, nparam,reg_on,numFolds);
 else
     load([saveto filesep 'LHmerit.mat'])
     load([saveto filesep 'lambda_values.mat'])
@@ -56,6 +69,7 @@ for mainfold=1:10
             max_lambda(mainfold, subfolds)=1;
         end
     end
+    pause(1)
     alphaidx2use(mainfold)=mode(max_alpha(mainfold,:));
     lambdaidx2use(mainfold)=mode(max_lambda(mainfold,:));
     alpha2use(mainfold)=alpha(alphaidx2use(mainfold));
@@ -94,7 +108,7 @@ for mainfold=1:10
 try
             [Merit.train_accuracy{mainfold} Merit.train_sensitivity{mainfold} Merit.train_specificity{mainfold} Merit.train_AUC{mainfold} Merit.train_F1{mainfold}]=class_mets(logical(truth), tstpred);
 catch
-pause
+disp('oh well')
 end
     end
 end
@@ -125,7 +139,7 @@ save('Merit',  'Merit');
 save('Results',  'pred', 'Beta', 'alpha2use', 'lambda2use', 'stats', 'mf', 'sf');
 end
 
-function [LHmerit lambda_values]=do_EN_1(X, truth, nboot, bagcrit, saveto, type, nparam, reg_on)
+function [LHmerit lambda_values mf sf]=do_EN_1(X, truth, nboot, bagcrit, saveto, type, nparam, reg_on, numFolds)
 
 % latest update: may 30th 2017
 
@@ -138,7 +152,26 @@ switch type
         family='binomial';
         link='logit';
 end
-[mf, sf]=AssignFolds(size(X,1),10,10);
+ok=0;
+while ok==0
+    [mf, sf]=AssignFolds(size(X,1),numFolds,numFolds);
+    [mf ,sf]=check_CV(mf, sf,truth, numFolds);
+    folds=0;
+    while folds<100
+        folds=folds+1;
+        tmplambda2use=[];
+        [mainfold, subfolds]=ind2sub([10 10], folds);
+        trainsubjectsTune = find(mf ~= mainfold & sf(:,mainfold) ~=subfolds);
+        testsubjectsTune = find(mf ~= mainfold & sf(:,mainfold)==subfolds);
+        if length(unique(truth(testsubjectsTune)))<2 | length(unique(truth(trainsubjectsTune)))<2
+            folds=100;
+            ok=0;
+        elseif folds==100
+            ok=1;
+        end
+    end
+end
+        
 
 lambda= fliplr(logspace(-1.5,0,nparam));
 alpha = linspace(0.01,1.0,nparam);
@@ -146,7 +179,7 @@ alpha = linspace(0.01,1.0,nparam);
 %%PARFOR
 parfor folds=1:100
     tmplambda2use=[];
-    [mainfold subfolds]=ind2sub([10 10], folds);
+    [mainfold, subfolds]=ind2sub([10 10], folds);
     trainsubjectsTune = find(mf ~= mainfold & sf(:,mainfold) ~=subfolds);
     testsubjectsTune = find(mf ~= mainfold & sf(:,mainfold)==subfolds);
     
@@ -162,7 +195,7 @@ parfor folds=1:100
             fit=glmnet(X(trainsubjectsTune, :),truth(trainsubjectsTune),family,options);
             B0=fit.beta; intercept=fit.a0; 
             while size(B0,2)<options.nlambda
-                options.lambda=linspace(lambda(1)+lambda(1)/10, 1, length(lambda));
+                options.lambda=linspace(lambda(1)+lambda(1)/5, 1, length(lambda));
                 fit=glmnet(X(trainsubjectsTune, :),truth(trainsubjectsTune),family,options);
                 B0=fit.beta; intercept=fit.a0;
             end
@@ -188,7 +221,11 @@ parfor folds=1:100
                     case 'linear',
                         LHmerit{folds} (alpha_looper,lambda_looper) = -sqrt(abs(truth(testsubjectsTune)-getprobstune)'*abs(truth(testsubjectsTune)-getprobstune)/length(truth(testsubjectsTune)));
                     case 'logistic',
-                        [accuracy sensitivity specificity AUC F1score]=class_mets(truth(testsubjectsTune), getprobstune');
+                        try
+                            [accuracy sensitivity specificity AUC F1score]=class_mets(truth(testsubjectsTune), getprobstune');
+                        catch
+                            pause
+                        end
                         if strcmp(reg_on, 'sensitivity')==1
                             LHmerit{folds} (alpha_looper,lambda_looper) =sensitivity;
                         elseif strcmp(reg_on, 'specificity')==1
@@ -206,7 +243,7 @@ parfor folds=1:100
             for bootct=1:nboot
                 train=0;
                 while length(train)<2
-                    [Xboot,Yboot,indexselect]=bootstrapal(X(trainsubjectsTune,:),truth,2/3);
+                    [Xboot,Yboot,indexselect]=bootstrapal(X(trainsubjectsTune,:),truth(trainsubjectsTune),2/3);
                     train=unique(Yboot);
                 end
                 
@@ -238,8 +275,12 @@ parfor folds=1:100
                     switch type
                         case 'linear',
                             tmp1 = -sqrt(abs(Y(testsubjectsTune)-getprobstune)'*abs(Y(testsubjectsTune)-getprobstune)/length(Y(testsubjectsTune)));
-                        case 'logistic',
+                        case 'logistic'
+                            try
                             [accuracy sensitivity specificity AUC F1score]=class_mets(Y(testsubjectsTune), getprobstune');
+                            catch
+                                pause
+                            end
                         if strcmp(reg_on, 'sensitivity')==1
                             tmp1=sensitivity;
                         elseif strcmp(reg_on, 'specificity')==1
@@ -278,6 +319,6 @@ parfor folds=1:100
         end
     end
 end
-save([saveto filesep 'LHmerit.mat'], 'LHmerit')
+save([saveto filesep 'LHmerit.mat'], 'LHmerit', 'mf', 'sf')
 save([saveto filesep 'lambda_values.mat'], 'lambda_values')
 end

@@ -10,10 +10,13 @@ cd(filedir)
 load('design.mat')
 design.saveto=savestr;
 if exist([savestr filesep 'Results.mat'])==0
+disp('1')
     if exist([savestr filesep 'LHmerit.mat'], 'file') | exist([savestr filesep 'LHmerit10.mat'], 'file')
+disp('2')
          [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = MR_3rd_level(design,1);
     elseif exist([savestr filesep 'merit_per_var.mat'])==0
         if exist([design.saveto filesep 'tmpmerit.mat'], 'file')
+disp('4')
             load([design.saveto filesep 'tmpmerit.mat'])
             [merit_per_var] = RAFT_FS(design, tmpmerit);
             [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
@@ -25,6 +28,7 @@ if exist([savestr filesep 'Results.mat'])==0
             end
            
         else
+disp('5')
             [merit_per_var] = RAFT_FS(design, []);
             [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
             MR_2nd_level(design, pass_vars, [1:(design.numFolds*design.numFolds)]);
@@ -36,6 +40,7 @@ if exist([savestr filesep 'Results.mat'])==0
             [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = MR_3rd_level(design, 1, 1);
         end
     elseif exist([savestr filesep 'pass_vars.mat'])==0
+disp('6')
         load('merit_per_var.mat')
         [design, pass_vars]=RAFT_do_thresh(design, merit_per_var);
                     MR_2nd_level(design, pass_vars, [1:(design.numFolds*design.numFolds)]);
@@ -46,6 +51,7 @@ if exist([savestr filesep 'Results.mat'])==0
             end
             [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = MR_3rd_level(design, 1, 1);
     else
+disp('7')
         s=dir(filedir);
         finished_folds=[];
         for n=1:size(s,1)
@@ -77,8 +83,11 @@ if exist([savestr filesep 'Results.mat'])==0
                 folds2do=[folds2do, n];
             end
         end
+load('design.mat')
         load('pass_vars.mat')
+
             MR_2nd_level(design, pass_vars, folds2do);
+
             if size(design.data,2)>=500
                 MR_collect_2nd_level_memorysave(design);
             else
@@ -87,6 +96,7 @@ if exist([savestr filesep 'Results.mat'])==0
             [params2pick, Merit, Beta, Vars2pick_main, GetProbs, design, stats] = MR_3rd_level(design,1);
     end
 else
+disp('8')
     load('Results.mat')
 end
 end

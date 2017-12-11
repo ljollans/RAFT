@@ -14,6 +14,7 @@ for folds=1:(design.numFolds*design.numFolds)
     tmpvars2use{folds}=zeros(design.numFolds, size(design.merit_thresholds,2),design.nvars);
     tmpLHmerit{folds}=NaN(design.numFolds, size(design.merit_thresholds,2));
 end
+%PARFOR
 parfor folds=1:length(folds2run)
     [mainfold, subfolds]=ind2sub([design.numFolds design.numFolds], folds2run(folds));
     %identify which threshold constellations are duplicates
@@ -59,7 +60,7 @@ parfor folds=1:length(folds2run)
                 train=0;
                 while length(train)<2
                     %get bootstrap data subset
-                    [Xboot,Yboot]=bootstrapal([design.data(trainsubjectsTune,Vars2pick), design.extradata(trainsubjectsTune,:)],design.outcome(trainsubjectsTune),design.Ratio);
+                    [Xboot,Yboot]=bootstrapal([design.data(trainsubjectsTune,tmpVars2pick), design.extradata(trainsubjectsTune,:)],design.outcome(trainsubjectsTune),design.Ratio);
                     %make sure we have multiple training subjects
                     train=unique(Yboot);
                 end
@@ -74,7 +75,9 @@ parfor folds=1:length(folds2run)
                 end
                 usedvars=tmp;
                 %make outcome predictions
-                getprobstune = glmval(squeeze([0;b]),design.data(testsubjectsTune,Vars2pick),design.link);
+
+                getprobstune = glmval(squeeze([0;b]),[design.data(testsubjectsTune,tmpVars2pick), design.extradata(testsubjectsTune,:)],design.link);
+
                 
                 %get evaluation metric
                 tmp1 = -sqrt(abs(design.data(testsubjectsTune)-getprobstune)'*abs(design.data(testsubjectsTune)-getprobstune)/length(design.data(testsubjectsTune)));
