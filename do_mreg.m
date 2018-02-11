@@ -29,6 +29,9 @@ mse=(abs(truth-pred')'*abs(truth-pred')/length(truth));
 if ~exist(saveto, 'dir')
     mkdir(saveto);
 end
+stats.r=r;
+stats.p=p;
+stats.mse=mse;
 cd(saveto)
 save('data', 'X', 'truth');
 save('betas', 'b');

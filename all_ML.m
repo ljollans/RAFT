@@ -13,7 +13,7 @@ if feature_selection==1 & strcmp(method, 'EN')==1
 elseif feature_selection==1 & strcmp(method, 'MR')==1
 stats=eliminatererunsMR(design.saveto)
 elseif feature_selection==0 & strcmp(method, 'EN')==1
-    [Beta, pred, stats]=do_EN(design.data, design.outcome, design.nboot, design.bagcrit, design.saveto, design.type);
+    [Beta, pred, stats]=do_EN([design.data,design.extradata], design.outcome, design.nboot, design.bagcrit, design.saveto, design.type, design.numFolds);
 elseif feature_selection==0 & strcmp(method, 'MR')==1
     [stats.b, stats.pred, stats.r, stats.p, stats.mse]=do_mreg(design.data, design.outcome, design.nboot, design.saveto);
 elseif feature_selection==0 & strcmp(method, 'TB')==1

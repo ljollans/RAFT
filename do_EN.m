@@ -1,20 +1,7 @@
-function [Beta, pred, stats]=do_EN(X, truth, nboot, saveto, type, numFolds, nparam, reg_on)
-
-% X: your data matrix
-% truth: your outcome vector
-% nboot: number of bagging iterations to do, if nboot==1 it won't do bagging
-% saveto: folder to save resutls to
-% type: 'linear' or 'logistic'
-% numFolds: number of cross-validation folds
-% nparam: number of alpha and lambda values to test, e.g. 5
-% reg_on: just leave this argument out unless you want to specifically set for logistic regression that models are optimized on a specific metric
-
-
-
+function [Beta, pred, stats]=do_EN(X, truth, nboot, bagcrit, saveto, type, numFolds, nparam, reg_on)
 % reg_on added in July 2017 to see if tuning on specificity rather than
 % f1score might make sense with very unbalanced models
 % latest update: july 7th 2017
-bagcrit='median';
 if ~exist(saveto)
     mkdir(saveto)
     save([saveto filesep 'data'], 'X', 'truth', 'nboot')

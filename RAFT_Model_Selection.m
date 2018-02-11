@@ -214,10 +214,10 @@ for mainfold=1:design.numFolds
             Merit.mse(mainfold)= -sqrt(abs(design.outcome(testsubjects)-GetProbs{mainfold})'*abs(design.outcome(testsubjects)-GetProbs{mainfold})/length(design.outcome(testsubjects)));
             [Merit.r(mainfold), Merit.p(mainfold)] = corr(GetProbs{mainfold}, design.outcome(testsubjects));
             %% to check overfit
-            train_GetProbs{mainfold} = glmval(Beta{mainfold},[design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.link);
-            train_prediction(trainsubjects)=train_GetProbs{mainfold};
-            Merit.train_mse(mainfold)= -sqrt(abs(design.outcome(trainsubjects)'-train_prediction(trainsubjects))*abs(design.outcome(trainsubjects)'-train_prediction(trainsubjects))'/length(design.outcome(trainsubjects)));
-            [Merit.train_r(mainfold), Merit.train_p(mainfold)] = corr(train_prediction(trainsubjects)', design.outcome(trainsubjects));
+            %train_GetProbs{mainfold} = glmval(Beta{mainfold},[design.data(trainsubjects,Vars2pick_main{mainfold}), design.extradata(trainsubjects,:)],design.link);
+            %train_prediction(trainsubjects)=train_GetProbs{mainfold};
+            %Merit.train_mse(mainfold)= -sqrt(abs(design.outcome(trainsubjects)'-train_prediction(trainsubjects))*abs(design.outcome(trainsubjects)'-train_prediction(trainsubjects))'/length(design.outcome(trainsubjects)));
+            %[Merit.train_r(mainfold), Merit.train_p(mainfold)] = corr(train_prediction(trainsubjects)', design.outcome(trainsubjects));
         case 'logistic',
             Beta{mainfold}=b;
             GetProbs{mainfold} = glmval(Beta{mainfold},[design.data(testsubjects,Vars2pick_main{mainfold}), design.extradata(testsubjects,:)],design.link);
