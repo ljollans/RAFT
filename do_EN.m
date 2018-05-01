@@ -17,10 +17,10 @@ switch type
         link='logit';
         if exist('reg_on', 'var')==0
             %if the groups are balanced
-            if length(find(truth==0))/3>length(find(truth==1)) %pos class small --> tune on sensitivity
-                reg_on='sensitivity';
-            elseif length(find(truth==1))/3>length(find(truth==0)) %neg class small --> tune on specficity
-                reg_on='specificity';
+            if length(find(truth==0))/3>length(find(truth==1)) %pos class small --> tune on true pos rate
+                reg_on='trueposrate';
+            elseif length(find(truth==1))/3>length(find(truth==0)) %neg class small --> tune on true neg rate
+                reg_on='truenegrate';
             else
                 reg_on='F1score';
             end
@@ -35,13 +35,15 @@ lambda= fliplr(logspace(-1.5,0,nparam));
 alpha = linspace(0.01,1.0,nparam);
 
 if ~exist([saveto filesep 'LHmerit.mat']) | ~exist([saveto filesep 'lambda_values.mat'])
-[LHmerit lambda_values mf sf]=do_EN_1(X, truth, nboot, bagcrit, saveto, type, nparam,reg_on,numFolds);
+    [LHmerit lambda_values mf sf]=do_EN_1(X, truth, nboot, bagcrit, saveto, type, nparam,reg_on,numFolds);
 else
     load([saveto filesep 'LHmerit.mat'])
     load([saveto filesep 'lambda_values.mat'])
 end
 
 for mainfold=1:10
+    pause(2)
+    
     for subfolds=1:10
         folds=sub2ind([10 10], mainfold, subfolds);
         for alpha_looper=1:length(alpha)
@@ -61,7 +63,7 @@ for mainfold=1:10
     lambdaidx2use(mainfold)=mode(max_lambda(mainfold,:));
     alpha2use(mainfold)=alpha(alphaidx2use(mainfold));
     if lambdaidx2use(mainfold)<nparam
-    lambda2use(mainfold)=mean(squeeze(lambda_aggr{mainfold}(:,alphaidx2use(mainfold),lambdaidx2use(mainfold)+1)));
+        lambda2use(mainfold)=mean(squeeze(lambda_aggr{mainfold}(:,alphaidx2use(mainfold),lambdaidx2use(mainfold)+1)));
     else
         lambda2use(mainfold)=mean(squeeze(lambda_aggr{mainfold}(:,alphaidx2use(mainfold),lambdaidx2use(mainfold))));
     end
@@ -83,21 +85,21 @@ for mainfold=1:10
     %% to test overfit do pred for trainsubs also
     tstGetProbs{mainfold} = glmval(Beta{mainfold},X(trainsubjects,:),link);
     tstpred(trainsubjects)=tstGetProbs{mainfold};
-    switch type
-        case 'linear',
-            [Merit.train_r(mainfold),Merit.train_p(mainfold)]=corr(tstpred(trainsubjects)', truth(trainsubjects));
-            Merit.train_mse(mainfold)=(abs(truth(trainsubjects)-tstpred(trainsubjects)')'*abs(truth(trainsubjects)-tstpred(trainsubjects)')/length(truth(trainsubjects)));
-        case 'logistic'
-%             [Merit.train_overall_AUC{mainfold},Merit.train_fpr{mainfold},Merit.train_tpr{mainfold}] = fastAUC(logical(truth),tstpred',0);
-%             [Merit.train_prec{mainfold}, Merit.train_tpr{mainfold}, Merit.train_fpr{mainfold}, Merit.train_thresh{mainfold}] = prec_rec_rob_mod(tstpred', logical(truth),'tstPrecRec', 'plotPR',0);
-%             fscoretrain_=(Merit.train_prec{mainfold}.*Merit.train_tpr{mainfold})./(Merit.train_prec{mainfold}+Merit.train_tpr{mainfold});
-%             Merit.train_F1score{mainfold}=max(fscoretrain_);
-try
-            [Merit.train_accuracy{mainfold} Merit.train_sensitivity{mainfold} Merit.train_specificity{mainfold} Merit.train_AUC{mainfold} Merit.train_F1{mainfold}]=class_mets(logical(truth), tstpred);
-catch
-disp('oh well')
-end
-    end
+    %     switch type
+    %         case 'linear',
+    %             [Merit.train_r(mainfold),Merit.train_p(mainfold)]=corr(tstpred(trainsubjects)', truth(trainsubjects));
+    %             Merit.train_mse(mainfold)=(abs(truth(trainsubjects)-tstpred(trainsubjects)')'*abs(truth(trainsubjects)-tstpred(trainsubjects)')/length(truth(trainsubjects)));
+    %         case 'logistic'
+    %             %             [Merit.train_overall_AUC{mainfold},Merit.train_fpr{mainfold},Merit.train_tpr{mainfold}] = fastAUC(logical(truth),tstpred',0);
+    %             %             [Merit.train_prec{mainfold}, Merit.train_tpr{mainfold}, Merit.train_fpr{mainfold}, Merit.train_thresh{mainfold}] = prec_rec_rob_mod(tstpred', logical(truth),'tstPrecRec', 'plotPR',0);
+    %             %             fscoretrain_=(Merit.train_prec{mainfold}.*Merit.train_tpr{mainfold})./(Merit.train_prec{mainfold}+Merit.train_tpr{mainfold});
+    %             %             Merit.train_F1score{mainfold}=max(fscoretrain_);
+    %             try
+    %                 [Merit.train_accuracy{mainfold} Merit.train_sensitivity{mainfold} Merit.train_specificity{mainfold} Merit.train_AUC{mainfold} Merit.train_F1{mainfold}]=class_mets_new(logical(truth), tstpred);
+    %             catch
+    %                 disp('oh well')
+    %             end
+    %     end
 end
 
 switch type
@@ -105,11 +107,11 @@ switch type
         [stats.r, stats.p]=corr(pred', truth);
         stats.mse=(abs(truth-pred')'*abs(truth-pred')/length(truth));
     case 'logistic'
-%         [stats.overall_AUC,stats.fpr,stats.tpr] = fastAUC(logical(truth),pred',0);
-%         [stats.prec, stats.tpr, stats.fpr, stats.thresh] = prec_rec_rob_mod(pred', logical(truth),'tstPrecRec', 'plotPR',0);
-%         fscore=(stats.prec.*stats.tpr)./(stats.prec+stats.tpr);
-%         stats.F1score=max(fscore);
-        [stats.accuracy stats.sensitivity stats.specificity stats.overall_AUC stats.F1score]=class_mets(truth, pred);
+        %         [stats.overall_AUC,stats.fpr,stats.tpr] = fastAUC(logical(truth),pred',0);
+        %         [stats.prec, stats.tpr, stats.fpr, stats.thresh] = prec_rec_rob_mod(pred', logical(truth),'tstPrecRec', 'plotPR',0);
+        %         fscore=(stats.prec.*stats.tpr)./(stats.prec+stats.tpr);
+        %         stats.F1score=max(fscore);
+        [stats.accuracy stats.trueposrate stats.truenegrate stats.falseposrate stats.falsenegrate stats.precision stats.NPV stats.AUC stats.F1score]=class_mets_new(truth, pred);
 end
 
 
@@ -122,7 +124,7 @@ save('betas', 'Beta');
 save('prediction', 'pred');
 save('params2use', 'alpha2use', 'lambda2use');
 save('results', 'stats');
-save('Merit',  'Merit');
+% save('Merit',  'Merit');
 save('Results',  'pred', 'Beta', 'alpha2use', 'lambda2use', 'stats', 'mf', 'sf');
 end
 
@@ -158,7 +160,7 @@ while ok==0
         end
     end
 end
-        
+
 
 lambda= fliplr(logspace(-1.5,0,nparam));
 alpha = linspace(0.01,1.0,nparam);
@@ -180,7 +182,7 @@ parfor folds=1:100
         tmpvars2use=[];
         if nboot<2
             fit=glmnet(X(trainsubjectsTune, :),truth(trainsubjectsTune),family,options);
-            B0=fit.beta; intercept=fit.a0; 
+            B0=fit.beta; intercept=fit.a0;
             while size(B0,2)<options.nlambda
                 options.lambda=linspace(lambda(1)+lambda(1)/5, 1, length(lambda));
                 fit=glmnet(X(trainsubjectsTune, :),truth(trainsubjectsTune),family,options);
@@ -200,7 +202,7 @@ parfor folds=1:100
                 size(intercept)
                 size(B0)
             end
-
+            
             for lambda_looper=1:length(lambda)
                 bb=b(:,lambda_looper);
                 getprobstune = glmval(squeeze(bb),X(testsubjectsTune,:),link);
@@ -209,20 +211,22 @@ parfor folds=1:100
                         LHmerit{folds} (alpha_looper,lambda_looper) = -sqrt(abs(truth(testsubjectsTune)-getprobstune)'*abs(truth(testsubjectsTune)-getprobstune)/length(truth(testsubjectsTune)));
                     case 'logistic',
                         try
-                            [accuracy sensitivity specificity AUC F1score]=class_mets(truth(testsubjectsTune), getprobstune');
+                            [accuracy trueposrate truenegrate falseposrate falsenegrate precision NPV AUC F1score]=class_mets_new(truth(testsubjectsTune), getprobstune');
                         catch
                             pause
                         end
-                        if strcmp(reg_on, 'sensitivity')==1
-                            LHmerit{folds} (alpha_looper,lambda_looper) =sensitivity;
-                        elseif strcmp(reg_on, 'specificity')==1
-                            LHmerit{folds} (alpha_looper,lambda_looper) =specificity;
+                        if strcmp(reg_on, 'trueposrate')==1
+                            LHmerit{folds} (alpha_looper,lambda_looper) =trueposrate;
+                        elseif strcmp(reg_on, 'truenegrate')==1
+                            LHmerit{folds} (alpha_looper,lambda_looper) =truenegrate;
                         elseif strcmp(reg_on, 'accuracy')==1
                             LHmerit{folds} (alpha_looper,lambda_looper) =accuracy;
                         elseif strcmp(reg_on, 'AUC')==1
                             LHmerit{folds} (alpha_looper,lambda_looper) =AUC;
                         elseif strcmp(reg_on, 'F1score')==1
                             LHmerit{folds} (alpha_looper,lambda_looper) =F1score;
+                        elseif strcmp(reg_on, 'precision')==1
+                            LHmerit{folds} (alpha_looper,lambda_looper) =posretrieval;
                         end
                 end
             end
@@ -264,21 +268,23 @@ parfor folds=1:100
                             tmp1 = -sqrt(abs(Y(testsubjectsTune)-getprobstune)'*abs(Y(testsubjectsTune)-getprobstune)/length(Y(testsubjectsTune)));
                         case 'logistic'
                             try
-                            [accuracy sensitivity specificity AUC F1score]=class_mets(Y(testsubjectsTune), getprobstune');
+                                [accuracy trueposrate truenegrate falseposrate falsenegrate posretrieval negretrieval AUC F1score]=class_mets_new(Y(testsubjectsTune), getprobstune');
                             catch
                                 pause
                             end
-                        if strcmp(reg_on, 'sensitivity')==1
-                            tmp1=sensitivity;
-                        elseif strcmp(reg_on, 'specificity')==1
-                            tmp1=specificity;
-                        elseif strcmp(reg_on, 'accuracy')==1
-                           tmp1=accuracy;
-                        elseif strcmp(reg_on, 'AUC')==1
-                            tmp1=AUC;
-                        elseif strcmp(reg_on, 'F1score')==1
-                            tmp1=F1score;
-                        end
+                            if strcmp(reg_on, 'trueposrate')==1
+                                tmp1 =trueposrate;
+                            elseif strcmp(reg_on, 'truenegrate')==1
+                                tmp1 =truenegrate;
+                            elseif strcmp(reg_on, 'accuracy')==1
+                                tmp1 =accuracy;
+                            elseif strcmp(reg_on, 'AUC')==1
+                                tmp1 =AUC;
+                            elseif strcmp(reg_on, 'F1score')==1
+                                tmp1 =F1score;
+                            elseif strcmp(reg_on, 'posretrieval')==1
+                                tmp1 =posretrieval;
+                            end
                     end
                     tmpmerit(bootct,lambda_looper)=tmp1;
                 end
