@@ -3,7 +3,7 @@ function [accuracy recall specificity falseposrate falsenegrate precision NPV AU
 
 [AUC,fpr,tpr] = fastAUC(logical(truth),preds',0);
 [prec, tpr,fpr, thresh] = prec_rec_rob_mod(preds', logical(truth),'tstPrecRec', 'plotPR',0);
-fscore=(prec.*tpr)./(prec+tpr);
+fscore=2*((prec.*tpr)./(prec+tpr));
 F1=max(fscore);
 
 x=tpr-fpr;
