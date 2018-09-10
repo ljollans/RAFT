@@ -41,11 +41,11 @@ else
     load([saveto filesep 'lambda_values.mat'])
 end
 
-for mainfold=1:10
+for mainfold=1:numFolds
     pause(2)
     
-    for subfolds=1:10
-        folds=sub2ind([10 10], mainfold, subfolds);
+    for subfolds=1:numFolds
+        folds=sub2ind([numFolds numFolds], mainfold, subfolds);
         for alpha_looper=1:length(alpha)
             lambda_aggr{mainfold}(subfolds,alpha_looper,:)=squeeze(lambda_values{folds}(alpha_looper, :));
         end
@@ -146,16 +146,16 @@ while ok==0
     [mf, sf]=AssignFolds(size(X,1),numFolds,numFolds);
     [mf ,sf]=check_CV(mf, sf,truth, numFolds);
     folds=0;
-    while folds<100
+    while folds<numFolds*numFolds
         folds=folds+1;
         tmplambda2use=[];
-        [mainfold, subfolds]=ind2sub([10 10], folds);
+        [mainfold, subfolds]=ind2sub([numFolds numFolds], folds);
         trainsubjectsTune = find(mf ~= mainfold & sf(:,mainfold) ~=subfolds);
         testsubjectsTune = find(mf ~= mainfold & sf(:,mainfold)==subfolds);
         if length(unique(truth(testsubjectsTune)))<2 | length(unique(truth(trainsubjectsTune)))<2
-            folds=100;
+            folds=numFolds*numFolds;
             ok=0;
-        elseif folds==100
+        elseif folds==numFolds*numFolds
             ok=1;
         end
     end
@@ -166,9 +166,10 @@ lambda= fliplr(logspace(-1.5,0,nparam));
 alpha = linspace(0.01,1.0,nparam);
 
 %%PARFOR
-parfor folds=1:100
+parfor folds=1:numFolds*numFolds
+%     disp(folds)
     tmplambda2use=[];
-    [mainfold, subfolds]=ind2sub([10 10], folds);
+    [mainfold, subfolds]=ind2sub([numFolds numFolds], folds);
     trainsubjectsTune = find(mf ~= mainfold & sf(:,mainfold) ~=subfolds);
     testsubjectsTune = find(mf ~= mainfold & sf(:,mainfold)==subfolds);
     
@@ -210,11 +211,11 @@ parfor folds=1:100
                     case 'linear',
                         LHmerit{folds} (alpha_looper,lambda_looper) = -sqrt(abs(truth(testsubjectsTune)-getprobstune)'*abs(truth(testsubjectsTune)-getprobstune)/length(truth(testsubjectsTune)));
                     case 'logistic',
-                        try
+%                         try
                             [accuracy trueposrate truenegrate falseposrate falsenegrate precision NPV AUC F1score]=class_mets_new(truth(testsubjectsTune), getprobstune');
-                        catch
-                            pause
-                        end
+%                         catch
+%                             pause
+%                         end
                         if strcmp(reg_on, 'trueposrate')==1
                             LHmerit{folds} (alpha_looper,lambda_looper) =trueposrate;
                         elseif strcmp(reg_on, 'truenegrate')==1
