@@ -58,7 +58,7 @@ end
 [B idx]=sort(ALLBetas(:,1));
 idx=flipud(idx);
 ALL_Betas=ALLBetas(idx,:);
-BB=[brainbetas;ones(nCoVars,10)];
+BB=[brainbetas;ones(nCoVars,design.numFolds)];
 for n=1:size(design.data,2)
     try
     strs{n}=varnames{n};
@@ -79,7 +79,11 @@ sorted_betas=array2table(sorted_betas);
 betas=array2table(betas);
 sorted_betas(:,2:4)=array2table(ALL_Betas);
 betas(:,2:4)=array2table(ALLBetas);
-sorted_betas(:,5:14)=array2table(BB(idx,:));
-sorted_betas.Properties.VariableNames={'Variable_index' 'Choice_frequency' 'Mean_beta_incl_0' 'Mean_beta_excl_0' 'cv1' 'cv2' 'cv3' 'cv4' 'cv5', 'cv6', 'cv7' 'cv8' 'cv9' 'cv10'};
+sorted_betas(:,5:4+design.numFolds)=array2table(BB(idx,:));
+tmp={'Variable_index' 'Choice_frequency' 'Mean_beta_incl_0' 'Mean_beta_excl_0'};
+for n=1:design.numFolds
+    tmp{4+n}=['cv' num2str(n)];
+end
+sorted_betas.Properties.VariableNames=tmp;
 betas.Properties.VariableNames={'Variable_index' 'Choice_frequency' 'Mean_beta_incl_0' 'Mean_beta_excl_0'};
 end
