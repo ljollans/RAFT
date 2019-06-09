@@ -15,6 +15,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+[![DOI](https://zenodo.org/badge/74484393.svg)](https://zenodo.org/badge/latestdoi/74484393)
+reStructedText
+
 Basic use:
 
 create design files using create_design.m
