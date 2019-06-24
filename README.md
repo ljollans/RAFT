@@ -40,3 +40,6 @@ To run the majority of this code you will also need to download the following:
 (note that use of glmnet in MATLAB on MacOS does not always work. An alternative implementation of glmnet is available in R. A work-around including a wrapper script in MATLAB incorporating glmnet in R has been implemented by ljollans. Get in touch for more details.)
 
 % fastAUC - http://www.mathworks.com/matlabcentral/fileexchange/42860-fast-auc-calculator-and-roc-curve-plotter/content/fastAUC.m
+
+
+NOTE FOR IOS USERS: glmnet does not work in many macos and linux instances of MATLAB at the moment. We have implemented a simple wrapper for the elastic net in R (multinomial) and python (linear and multinomial). Upload of these wrappers to follow. Further implementation of result interpretation etc in python in progress.
