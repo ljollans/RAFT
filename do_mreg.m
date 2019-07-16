@@ -1,7 +1,7 @@
-function [b, pred, r, p, mse]=do_mreg(X, truth, nboot, saveto)
+function [b, pred, r, p, mse]=do_mreg(X, truth, nboot, nfolds,saveto)
 
 kb=[ones(size(X,1),1), X];
-[mf, sf]=AssignFolds(size(X,1),10,10);
+[mf, sf]=AssignFolds(size(X,1),nfolds,nfolds);
 %%mreg
 clear btmp
 if nboot>1

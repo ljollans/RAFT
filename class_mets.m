@@ -1,4 +1,4 @@
-function [accuracy sensitivity specificity AUC F1]=class_mets(truth, preds)
+function [accuracy sensitivity specificity AUC F1,pred]=class_mets(truth, preds)
 
 [AUC,fpr,tpr] = fastAUC(logical(truth),preds',0);
 [prec, tpr,fpr, thresh] = prec_rec_rob_mod(preds', logical(truth),'tstPrecRec', 'plotPR',0);

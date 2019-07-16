@@ -12,12 +12,10 @@ if feature_selection==1 & strcmp(method, 'EN')==1
     stats=eliminatereruns(design.saveto)
 elseif feature_selection==1 & strcmp(method, 'MR')==1
 stats=eliminatererunsMR(design.saveto)
-elseif feature_selection==0 & strcmp(method, 'EN')==1 %note that alpha and lambda will have the same number of values
-    [Beta, pred, stats]=do_EN([design.data,design.extradata], design.outcome, design.nboot, ...
-    design.bagcrit, design.saveto, design.type, design.numFolds,design.numLambdas);
+elseif feature_selection==0 & strcmp(method, 'EN')==1
+    [Beta, pred, stats]=do_EN([design.data,design.extradata], design.outcome, design.nboot, design.bagcrit, design.saveto, design.type, design.numFolds);
 elseif feature_selection==0 & strcmp(method, 'MR')==1
-    [stats.b, stats.pred, stats.r, stats.p, stats.mse]=do_mreg(design.data, design.outcome, ...
-    design.nboot, design.saveto);
+    [stats.b, stats.pred, stats.r, stats.p, stats.mse]=do_mreg(design.data, design.outcome, design.nboot, design.numFolds,design.saveto);
 elseif feature_selection==0 & strcmp(method, 'TB')==1
     [stats]=do_random_forest_matlab(design);
 elseif feature_selection==1 & strcmp(method, 'TB')==1
