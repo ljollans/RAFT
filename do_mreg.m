@@ -6,7 +6,7 @@ kb=[ones(size(X,1),1), X];
 clear btmp
 if nboot>1
     for boot=1:nboot
-        parfor n=1:10
+        parfor n=1:nfolds
             ftrain=find(mf~=n);
             [Xboot,Yboot,indexselect]=bootstrapal(kb(ftrain,:),truth(ftrain),2/3);
             [btmp(boot,:,n),bint,r,rint,stats] = regress(Yboot,Xboot);
@@ -14,12 +14,12 @@ if nboot>1
     end
     b=squeeze(mean(btmp,1));
 else
-    parfor n=1:10
+    parfor n=1:nfolds
         ftrain=find(mf~=n);
         [b(:,n),bint,r,rint,stats] = regress(truth(ftrain), kb(ftrain,:));
     end
 end
-for n=1:10
+for n=1:nfolds
     ftest=find(mf==n);
     pred(ftest)=glmval([b(:,n)],kb(ftest,2:end), 'identity');
 end
